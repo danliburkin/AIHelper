@@ -3,6 +3,9 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   root: '.',
   server: {
-    allowedHosts: ['.loca.lt'],
+    allowedHosts: ['.loca.lt', '.trycloudflare.com'],
+  },
+  preview: {
+    allowedHosts: ['.loca.lt', '.trycloudflare.com'],
   },
 });
