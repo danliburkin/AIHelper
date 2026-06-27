@@ -72,7 +72,7 @@ function composeRestart(state) {
 1. DISCARD your previous answer entirely — do not revise it in place.
 2. Every item in ===REVOKED_BY_USER_DO_NOT_USE=== and every "DELETE" line below is FORBIDDEN — remove them from your reasoning.
 3. If an assumption was revoked (unchecked), your new answer MUST NOT treat it as true. Change the answer accordingly.
-4. If memory was overridden, use only the "USE INSTEAD" wording; never the "DELETE/IGNORE" wording.
+4. If memory or an assumption was overridden, use only the "USE INSTEAD" wording; never the "DELETE/IGNORE" wording.
 5. Use ONLY the Corrected Context Spec as binding context. Ignore everything else from earlier in this conversation.
 6. Do not perform fresh retrieval — treat listed facts as the frozen evidence pool.
 

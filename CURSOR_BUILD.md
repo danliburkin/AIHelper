@@ -1,6 +1,6 @@
 # Context Lens — B1 Build Spec & Session Handoff
 
-**Status: ~75% complete** — engine, parser, smart prompts, clipboard UI, responsive dark UI, and regenerate-with-DELETE flow are implemented. Remaining work is polish, import `.md`, and proving the full loop in real chatbot sessions.
+**Status: ~90% complete** — engine, parser, smart prompts, clipboard UI, responsive Moodist-inspired UI, mobile rendering optimizations, assumption replacement prompts, and the regenerate-with-corrections flow are implemented. Remaining work is mainly import `.md`, broader polish, and proving repeated real-chatbot sessions.
 
 ---
 
@@ -19,14 +19,25 @@ A **client-only single-page web app**. No backend. No server. No database. Sessi
 ## How to run
 
 ```bash
-cd /home/dan/CursorProjects/AIHelper
+cd /workspace
 npm install          # if node_modules missing
 npm run dev          # → http://localhost:5173
-npm test             # 12 tests (parser + smoke)
 npm run build        # → dist/
+npm run preview      # → http://localhost:4173 after build
+npm test             # 13 tests (parser + smoke)
 ```
 
 Requires Node/npm on PATH for development. The built `dist/` folder is static files only — no Node at runtime for end users.
+
+For phone testing in Cursor Cloud, prefer a production preview tunnel over the Vite dev tunnel:
+
+```bash
+npm run build
+npm run preview -- --host 0.0.0.0 --port 4173
+npx cloudflared tunnel --url http://localhost:4173
+```
+
+`vite.config.js` allows `.loca.lt` and `.trycloudflare.com` for dev/preview host checks. Localtunnel has been flaky with dev-module requests; Cloudflare quick tunnels have been more reliable for mobile testing.
 
 ---
 
@@ -37,9 +48,9 @@ Requires Node/npm on PATH for development. The built `dist/` folder is static fi
 | Language | **Plain JavaScript** (ES modules) — not TypeScript |
 | Bundler | Vite 6 |
 | UI | Native DOM (`createElement`, `textContent`) — no React |
-| CSS | Single `main.css` — dark editorial, corner gradients, responsive |
+| CSS | Single `main.css` — Moodist-inspired dark UI, mobile performance overrides |
 | Tests | Vitest (`tests/parser.test.js`, `tests/smoke.test.js`) |
-| Fonts | Libre Baskerville, Inter, IBM Plex Mono (Google Fonts) |
+| Fonts | Inter, IBM Plex Mono (Google Fonts) |
 
 Optional: Gemini Nano via `window.LanguageModel` for parse/compose fallback only (`src/engine/nano.js`).
 
@@ -48,7 +59,7 @@ Optional: Gemini Nano via `window.LanguageModel` for parse/compose fallback only
 ## Project layout
 
 ```
-/home/dan/CursorProjects/AIHelper/
+/workspace/
 ├── CURSOR_BUILD.md          ← this file
 ├── index.html
 ├── package.json
@@ -85,8 +96,8 @@ The user does **not** choose Task vs Restart. One button: **Copy to chatbot**.
 3. **Paste reply** into “Chatbot reply” (auto-parses on paste, or click Parse reply).
 4. Boards fill from structured blocks at end of reply.
 5. **Edit boards** — uncheck assumptions, override memory, edit assumption text.
-6. Preview badge switches to **Regenerate with your edits**; footer shows **Will tell chatbot to DELETE**.
-7. **Copy to chatbot** again → prompt includes `===REVOKED_BY_USER_DO_NOT_USE===` and explicit DELETE lines.
+6. Preview badge switches to **Regenerate with your edits**; footer shows **Corrections sent to chatbot**.
+7. **Copy to chatbot** again → prompt includes `===REVOKED_BY_USER_DO_NOT_USE===` plus explicit DELETE/REPLACE lines.
 8. Paste new reply → ingest → verify answer changed.
 
 **Critical:** Plain chatbot answers without `===MEMORY===` / `===ASSUMPTIONS===` / `===FACTS===` / `===END===` blocks will **not** populate boards. The decorated prompt instructs the model to emit them.
@@ -143,7 +154,7 @@ hasCorrectiveEdits()
 { id, content, type, sourceUrl, sourceDate, active }   // type: 'retrieved' | 'computed'
 
 // Assumption
-{ id, statement, reason, active }
+{ id, originalStatement, originalReason, statement, reason, active, source } // source: 'inferred' | 'user_override'
 
 // Engine state
 { memory[], facts[], assumptions[], originalTask, topic, hasCorrectiveEdits }
@@ -177,9 +188,10 @@ Parser: `src/engine/parser.js` — tested for well-formed, partial, and malforme
 
 Restart prompt includes:
 
-1. **`===REVOKED_BY_USER_DO_NOT_USE===`** block at top with `ASSUMPTION_DELETE`, `MEMORY_DELETE`, etc.
+1. **`===REVOKED_BY_USER_DO_NOT_USE===`** block at top with `ASSUMPTION_DELETE`, `ASSUMPTION_REPLACE_DELETE`, `ASSUMPTION_REPLACE_USE`, `MEMORY_DELETE`, etc.
 2. **Revoked sections** in prose (`## Revoked assumptions — DELETE from your answer`)
-3. **Corrected Context Spec** — active + committed items only
+3. **Correction sections** in prose (`DELETE/IGNORE` old text, `USE INSTEAD` new text)
+4. **Corrected Context Spec** — active + committed items only
 
 `prime_assumptions` still exists in engine but is **not exposed in UI** (optional future).
 
@@ -192,7 +204,7 @@ Restart prompt includes:
 3. User confirms in `window.confirm` → `ratifyMemory` pins `committedText`, sets `source: 'user_override'`.
 4. Restart prompt emits `MEMORY_REPLACE_DELETE` / `MEMORY_REPLACE_USE` for overrides.
 
-Assumption edit: inline `window.prompt` for statement + reason (no ratification step).
+Assumption edit: one in-app dialog for statement + reason. Saving sets `source: 'user_override'`, preserves the original statement/reason, and emits `ASSUMPTION_REPLACE_DELETE` / `ASSUMPTION_REPLACE_USE` in restart prompts.
 
 ---
 
@@ -200,21 +212,22 @@ Assumption edit: inline `window.prompt` for statement + reason (no ratification 
 
 - **Outbound panel:** question input, live prompt preview, mode badge (First answer / Regenerate with your edits), Copy to chatbot.
 - **Main:** reply textarea (left on desktop) + three board panels (right).
-- **Footer:** Live Context Spec, **Will tell chatbot to DELETE** (visible when revocations exist), status strip, Export .md.
+- **Footer:** Live Context Spec, **Corrections sent to chatbot** (visible when revocations/replacements exist), status strip, Export .md.
 - **Responsive:** mobile stack, tablet/desktop two-column, touch-friendly targets, `100dvh`, safe-area insets.
-- **Design:** dark corner-to-corner gradients, Webby-inspired editorial typography (Libre Baskerville headlines), color-coded board accents (amber / blue / plum).
+- **Design:** Moodist-inspired dark ambient surfaces, amber/green accents, rounded cards, compact mobile layout.
+- **Mobile performance:** small screens disable fixed backgrounds, backdrop blur, heavy shadows, and most transitions.
 - **Toggle scroll fix:** checking/unchecking rows updates in place without full re-render (preserves scroll position).
 
 ---
 
-## Tests (12 passing)
+## Tests (13 passing)
 
 - `tests/parser.test.js` — block parser, contextSpec, composeSmartPrompt, revocation alert
-- `tests/smoke.test.js` — toggle assumption → restart prompt contains DELETE; memory override → context spec
+- `tests/smoke.test.js` — toggle assumption → restart prompt contains DELETE; memory override → context spec; assumption override → replacement prompt
 
 ---
 
-## Done (~75%)
+## Done (~90%)
 
 - [x] Vite + plain JS scaffold
 - [x] Engine: parser, contextSpec, revocations, smart prompt
@@ -224,17 +237,20 @@ Assumption edit: inline `window.prompt` for statement + reason (no ratification 
 - [x] Explicit DELETE / regenerate instructions for unchecked items
 - [x] Footer revocation preview
 - [x] Nano feature-detect (optional)
-- [x] Responsive + dark gradient UI
+- [x] Responsive + Moodist-inspired dark UI
+- [x] Mobile render optimizations
+- [x] In-app assumption override dialog
+- [x] Explicit assumption replacement instructions
+- [x] Cloudflare tunnel preview flow for phone testing
 - [x] Vitest coverage for core loop
 
 ---
 
-## Remaining (~25%)
+## Remaining (~10%)
 
-- [ ] **Prove end-to-end** with real chatbot sessions (success criterion below)
+- [ ] **Prove repeated end-to-end** with real chatbot sessions (success criterion below)
 - [ ] **Import `.md`** — load a previously exported Context Spec (export exists, import does not)
-- [ ] **Better override UX** — replace `window.prompt` / `window.confirm` with in-app modals
-- [ ] **Assumption edit revocations** — if user edits assumption text (not just unchecks), surface old vs new in DELETE block
+- [ ] **Better memory override UX** — replace memory `window.prompt` / `window.confirm` with in-app modal
 - [ ] **README** for non-Cursor users (optional)
 - [ ] **prime_assumptions** — expose in UI only if user wants two-phase flow (optional)
 - [ ] Polish: keyboard shortcuts, “suppress” label on toggles, import flow
@@ -262,7 +278,8 @@ One complete loop in production use:
 ## Handoff notes for next session
 
 1. If boards stay empty after paste, user sent **raw question** to chatbot instead of **decorated prompt** from preview.
-2. After edits, verify footer **Will tell chatbot to DELETE** is populated before copying.
-3. Preview must start with `===REVOKED_BY_USER_DO_NOT_USE===` when assumptions are unchecked.
+2. After edits, verify footer **Corrections sent to chatbot** is populated before copying.
+3. Preview must start with `===REVOKED_BY_USER_DO_NOT_USE===` when assumptions are unchecked or replaced.
 4. Engine detection uses **board state** (`hasRevocations`) not only the `hasCorrectiveEdits` flag.
-5. Do not edit this file unless updating handoff status — implementation lives in `src/`.
+5. Use production preview + Cloudflare tunnel for phone checks; localtunnel has repeatedly returned 400/502 for public URLs.
+6. Do not edit this file unless updating handoff status — implementation lives in `src/`.

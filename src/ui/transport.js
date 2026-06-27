@@ -73,7 +73,7 @@ export function initTransport(refs, engine, onUpdate) {
     updatePromptPreview();
     if (engine.needsRegeneratePrompt()) {
       setStatus(
-        'Boards edited — Copy to chatbot now includes DELETE instructions for what you removed.',
+        'Boards edited — Copy to chatbot now includes replacement/delete instructions for your corrections.',
         'warning',
       );
       highlightStep(4);
@@ -160,7 +160,7 @@ export function initTransport(refs, engine, onUpdate) {
       await navigator.clipboard.writeText(prompt);
       setStatus(
         regenerating
-          ? 'Copied regenerate prompt — tells the chatbot to delete revoked items and write a new answer.'
+          ? 'Copied regenerate prompt — tells the chatbot what to replace or delete before writing a new answer.'
           : 'Copied decorated prompt — paste into your chatbot, send, then paste the reply back here.',
         'success',
       );

@@ -137,7 +137,7 @@ export function buildLayout(root) {
   const contextLabel = document.createElement('h2');
   contextLabel.textContent = 'Live Context Spec';
   const revocationsLabel = document.createElement('h2');
-  revocationsLabel.textContent = 'Will tell chatbot to DELETE';
+  revocationsLabel.textContent = 'Corrections sent to chatbot';
   revocationsLabel.className = 'revocations-label';
   revocationsLabel.hidden = true;
   const revocationsPreview = document.createElement('pre');
