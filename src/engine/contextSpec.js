@@ -38,7 +38,8 @@ export function buildContextSpec(boards) {
     lines.push('_No active assumptions._');
   } else {
     for (const assumption of activeAssumptions) {
-      lines.push(`- ${assumption.statement} — likely because: ${assumption.reason}`);
+      const prefix = assumption.source === 'user_override' ? '[user override] ' : '';
+      lines.push(`- ${prefix}${assumption.statement} — likely because: ${assumption.reason}`);
     }
   }
 
@@ -84,6 +85,23 @@ export function buildRevocations(boards) {
     sections.push(lines.join('\n'));
   }
 
+  const overriddenAssumptions = boards.assumptions.filter(
+    (a) =>
+      a.active &&
+      a.source === 'user_override' &&
+      (a.originalStatement !== a.statement || a.originalReason !== a.reason),
+  );
+  if (overriddenAssumptions.length > 0) {
+    const lines = ['## Assumption corrections — REPLACE former assumption'];
+    for (const item of overriddenAssumptions) {
+      lines.push(
+        `- DELETE/IGNORE: "${item.originalStatement}" (was: likely because ${item.originalReason})`,
+      );
+      lines.push(`- USE INSTEAD (authoritative): "${item.statement}" (likely because ${item.reason})`);
+    }
+    sections.push(lines.join('\n'));
+  }
+
   const revokedFacts = boards.facts.filter((f) => !f.active);
   if (revokedFacts.length > 0) {
     const lines = ['## Revoked facts — DELETE from your evidence'];
@@ -118,6 +136,17 @@ export function buildRevocationAlert(boards) {
 
   for (const item of boards.assumptions.filter((a) => !a.active)) {
     lines.push(`ASSUMPTION_DELETE: "${item.statement}" | reason_was: ${item.reason}`);
+  }
+  for (const item of boards.assumptions.filter(
+    (a) =>
+      a.active &&
+      a.source === 'user_override' &&
+      (a.originalStatement !== a.statement || a.originalReason !== a.reason),
+  )) {
+    lines.push(
+      `ASSUMPTION_REPLACE_DELETE: "${item.originalStatement}" | reason_was: ${item.originalReason}`,
+    );
+    lines.push(`ASSUMPTION_REPLACE_USE: "${item.statement}" | reason: ${item.reason}`);
   }
   for (const item of boards.memory.filter((m) => !m.active)) {
     lines.push(`MEMORY_DELETE: "${item.committedText}"`);

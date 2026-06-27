@@ -20,9 +20,12 @@ function appendParsed(state, parsed) {
   for (const assumption of parsed.assumptions) {
     state.assumptions.push({
       id: crypto.randomUUID(),
+      originalStatement: assumption.statement,
+      originalReason: assumption.reason,
       statement: assumption.statement,
       reason: assumption.reason,
       active: true,
+      source: 'inferred',
     });
     added.assumptions += 1;
   }
@@ -145,8 +148,14 @@ export function createEngine() {
     const item = state.assumptions.find((a) => a.id === id);
     if (!item) return;
 
+    if (!item.originalStatement) {
+      item.originalStatement = item.statement;
+      item.originalReason = item.reason;
+    }
     item.statement = statement;
     item.reason = reason;
+    item.source = 'user_override';
+    item.active = true;
     markEdited();
   },
 

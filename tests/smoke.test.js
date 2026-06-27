@@ -46,4 +46,22 @@ describe('end-to-end engine loop', () => {
     expect(spec).toContain('User states: I am a complete beginner');
     expect(spec).not.toContain('User is learning RAG');
   });
+
+  it('assumption override tells the chatbot to replace the old assumption', async () => {
+    const engine = createEngine();
+    engine.setOriginalTask('Explain RAG simply');
+    await engine.ingestReplyWithFallback(SAMPLE_REPLY);
+
+    const assumptionId = engine.getBoards().assumptions[0].id;
+    engine.editAssumption(assumptionId, 'Explain basics first', 'user asked for simple wording');
+
+    const spec = engine.buildContextSpec();
+    expect(spec).toContain('[user override] Explain basics first');
+    expect(spec).not.toContain('Skip basics');
+
+    const prompt = engine.previewSmartPrompt();
+    expect(prompt).toContain('ASSUMPTION_REPLACE_DELETE: "Skip basics"');
+    expect(prompt).toContain('ASSUMPTION_REPLACE_USE: "Explain basics first"');
+    expect(prompt).toContain('USE INSTEAD (authoritative): "Explain basics first"');
+  });
 });

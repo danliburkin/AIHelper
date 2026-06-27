@@ -128,10 +128,14 @@ export function initBoards(container, engine, onFullUpdate, onContextUpdate) {
   }
 
   for (const item of boards.assumptions) {
-    const { row } = createToggleRow(item.id, item.active, (active) => {
+    const { row, text } = createToggleRow(item.id, item.active, (active) => {
       engine.toggleAssumption(item.id, active);
       afterToggle(row, active);
     }, item.statement);
+
+    if (item.source === 'user_override') {
+      text.classList.add('overridden');
+    }
 
     const marker = el('span', 'inferred-marker', 'inferred');
     row.querySelector('.row-toggle').append(marker);
@@ -139,8 +143,8 @@ export function initBoards(container, engine, onFullUpdate, onContextUpdate) {
     const reason = el('p', 'row-reason', `likely because: ${item.reason}`);
     const editBtn = el('button', 'btn btn-small', 'Edit');
     editBtn.type = 'button';
-    editBtn.addEventListener('click', () => {
-      const saved = showAssumptionEdit(engine, item);
+    editBtn.addEventListener('click', async () => {
+      const saved = await showAssumptionEdit(engine, item);
       if (saved) onFullUpdate();
     });
 
