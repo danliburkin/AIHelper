@@ -865,6 +865,119 @@ body {
   }
 }
 
+/* Mobile performance — keep the mood, drop costly paint work. */
+@media (max-width: 639px) {
+  :root {
+    --page-pad: clamp(0.85rem, 4vw, 1rem);
+    --section-gap: 0.9rem;
+    --shadow: none;
+    --shadow-card: none;
+    --gradient-frame: #0d1512;
+    --gradient-shell: #111914;
+    --gradient-header: rgba(255, 247, 224, 0.045);
+    --gradient-outbound: rgba(242, 181, 94, 0.06);
+    --gradient-panel: rgba(255, 247, 224, 0.04);
+    --gradient-footer: rgba(11, 17, 15, 0.74);
+    --focus-ring: 0 0 0 2px rgba(242, 181, 94, 0.52);
+  }
+
+  body {
+    background: var(--gradient-frame);
+    background-attachment: scroll;
+  }
+
+  .app-shell {
+    margin: 0;
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .app-brand h1 {
+    font-size: clamp(2rem, 13vw, 3.2rem);
+    letter-spacing: -0.06em;
+  }
+
+  .app-header,
+  .outbound-panel,
+  .panel,
+  .app-footer {
+    background: var(--gradient-panel);
+  }
+
+  .outbound-panel {
+    background: var(--gradient-outbound);
+  }
+
+  .app-footer {
+    background: var(--gradient-footer);
+  }
+
+  .workflow-step,
+  .task-input,
+  .prompt-mode,
+  .prompt-preview,
+  .reply-textarea,
+  .board-row,
+  .btn {
+    transition: none;
+  }
+
+  .prompt-preview {
+    min-height: 120px;
+    max-height: 210px;
+    background: #0b120f;
+  }
+
+  .reply-textarea {
+    min-height: 150px;
+    background: #0b120f;
+  }
+
+  .boards-container {
+    gap: 0.75rem;
+    overflow: visible;
+  }
+
+  .board-section {
+    padding: 0.85rem;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .board-memory,
+  .board-facts,
+  .board-assumptions {
+    background: rgba(255, 247, 224, 0.045);
+  }
+
+  .board-row {
+    background: rgba(7, 12, 10, 0.5);
+  }
+
+  .btn-primary {
+    box-shadow: none;
+  }
+
+  .context-spec,
+  .revocations-preview,
+  .status {
+    background: #0b120f;
+  }
+
+  .dialog-overlay {
+    background: rgba(3, 7, 5, 0.82);
+    backdrop-filter: none;
+  }
+
+  .edit-dialog {
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.34);
+    background: #162019;
+  }
+}
+
 /* Small phones */
 @media (max-width: 380px) {
   .app-shell {
