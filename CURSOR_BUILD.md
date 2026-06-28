@@ -292,13 +292,13 @@ The core differentiator and the make-or-break task (all external reviewers flagg
 
 The trust rung. The model proposes record changes; the user commits. The existing boards/override handshake become this editor.
 
-- [ ] After ingest, parse model-proposed transitions (e.g. `===PROPOSE=== mark <id> done | supersede <id> with <id> | new <record> | tag <id> <tags>`).
-- [ ] **Material-only rule** (prevents confirm-fatigue): instruct the model to propose only material state changes — a goal completing, a plan being abandoned/superseded, a new commitment. **Do not propose** trivial rephrasings or restating things already true. A 20-minute session should yield a few proposals, not fifteen.
-- [ ] Render proposals as a confirm/reject queue (reuse override-handshake UX), shown as a short batch with a one-line rationale each. Support **reject individually** and **accept all** for a quick clean batch; high-impact changes (e.g. marking a health/financial item done) are flagged and must be confirmed individually.
-- [ ] On confirm, apply to the record with new `updated_at` and set `provenance: 'model_proposed_user_confirmed'`; on reject, discard. Never auto-apply.
-- [ ] Confirmed proposals write/refresh `tags[]` so the R3 assembler can find the item next time.
-- [ ] Optional: a confirmed `done` record with a follow-up date becomes a dated reminder surfaced when due (thin layer; deterministic).
-- [ ] Tests: no proposal mutates the record without explicit confirm; trivial proposals are suppressed by the prompt; confirm updates timestamps, provenance, tags, and supersession links; high-impact items cannot be swept by "accept all".
+- [x] After ingest, parse model-proposed transitions (e.g. `===PROPOSE=== mark <id> done | supersede <id> with <id> | new <record> | tag <id> <tags>`).
+- [x] **Material-only rule** (prevents confirm-fatigue): instruct the model to propose only material state changes — a goal completing, a plan being abandoned/superseded, a new commitment. **Do not propose** trivial rephrasings or restating things already true. A 20-minute session should yield a few proposals, not fifteen.
+- [x] Render proposals as a confirm/reject queue (reuse override-handshake UX), shown as a short batch with a one-line rationale each. Support **reject individually** and **accept all** for a quick clean batch; high-impact changes (e.g. marking a health/financial item done) are flagged and must be confirmed individually.
+- [x] On confirm, apply to the record with new `updated_at` and set `provenance: 'model_proposed_user_confirmed'`; on reject, discard. Never auto-apply.
+- [x] Confirmed proposals write/refresh `tags[]` so the R3 assembler can find the item next time.
+- [ ] Optional: a confirmed `done` record with a follow-up date becomes a dated reminder surfaced when due (thin layer; deterministic). _(deferred — explicitly optional in spec)_
+- [x] Tests: no proposal mutates the record without explicit confirm; trivial proposals are suppressed by the prompt; confirm updates timestamps, provenance, tags, and supersession links; high-impact items cannot be swept by "accept all".
 
 **Ships:** Outlook-grade trust — it behaves like a reliable secretary, not a guessing chatbot.
 

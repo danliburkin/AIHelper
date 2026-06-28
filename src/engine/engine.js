@@ -19,6 +19,7 @@ import {
   renderSnapshotMarkdown,
 } from './persistence.js';
 import { buildBriefing, deriveTopicTags } from './briefing.js';
+import { parseProposals, annotateImpact, applyProposal } from './proposals.js';
 
 function newId() {
   return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -125,6 +126,7 @@ export function createEngine() {
     topic: '',
     hasCorrectiveEdits: false,
     lastActivityAt: null,
+    pendingProposals: [],
   };
 
   function markEdited() {
@@ -139,13 +141,21 @@ export function createEngine() {
     state.lastActivityAt = stamp;
   }
 
+  function harvestProposals(text) {
+    const fresh = parseProposals(text);
+    annotateImpact(fresh, state);
+    state.pendingProposals.push(...fresh);
+    return fresh.length;
+  }
+
   return {
     ingestReply(text) {
       const added = appendParsed(state, parseReplyBlocks(text));
+      const proposalsAdded = harvestProposals(text);
       if (added.memory + added.assumptions + added.facts + added.ambient > 0) {
         state.lastActivityAt = nowIso();
       }
-      return added;
+      return { ...added, proposals: proposalsAdded };
     },
 
     async ingestReplyWithFallback(text) {
@@ -165,12 +175,80 @@ export function createEngine() {
       if (added.memory + added.assumptions + added.facts + added.ambient > 0) {
         state.lastActivityAt = nowIso();
       }
+      const proposalsAdded = harvestProposals(text);
 
       return {
         ...added,
+        proposals: proposalsAdded,
         hadStructuredBlocks: hasStructuredBlocks(text),
         usedNano,
       };
+    },
+
+    /**
+     * R4 — return the queue of pending model-proposed record changes.
+     */
+    getPendingProposals() {
+      return state.pendingProposals.map((p) => ({ ...p, tags: [...(p.tags || [])] }));
+    },
+
+    /**
+     * R4 — accept a single proposal by id. Applies the mutation and removes it
+     * from the queue. Returns the result envelope from applyProposal.
+     */
+    acceptProposal(proposalId) {
+      const idx = state.pendingProposals.findIndex((p) => p.id === proposalId);
+      if (idx === -1) return { applied: false, reason: 'no such proposal' };
+      const proposal = state.pendingProposals[idx];
+      const result = applyProposal(state, proposal);
+      if (result.applied) {
+        state.pendingProposals.splice(idx, 1);
+        state.lastActivityAt = nowIso();
+        // Confirming a proposal IS a state change but the briefing is now in
+        // sync with the new record, so don't trigger a regenerate prompt.
+      }
+      return result;
+    },
+
+    /**
+     * R4 — reject (discard) a single proposal by id.
+     */
+    rejectProposal(proposalId) {
+      const idx = state.pendingProposals.findIndex((p) => p.id === proposalId);
+      if (idx === -1) return false;
+      state.pendingProposals.splice(idx, 1);
+      return true;
+    },
+
+    /**
+     * R4 — accept all proposals in the queue EXCEPT those flagged
+     * requiresIndividualConfirm. High-impact items cannot be swept by accept-all.
+     */
+    acceptAllSafeProposals() {
+      const results = [];
+      const localIdMap = new Map();
+      const survivors = [];
+      for (const proposal of state.pendingProposals) {
+        if (proposal.requiresIndividualConfirm) {
+          survivors.push(proposal);
+          continue;
+        }
+        const result = applyProposal(state, proposal, localIdMap);
+        results.push({ proposal_id: proposal.id, ...result });
+        if (!result.applied) survivors.push(proposal);
+      }
+      state.pendingProposals = survivors;
+      if (results.some((r) => r.applied)) state.lastActivityAt = nowIso();
+      return results;
+    },
+
+    /**
+     * R4 — reject all proposals in the queue.
+     */
+    rejectAllProposals() {
+      const n = state.pendingProposals.length;
+      state.pendingProposals = [];
+      return n;
     },
 
     getBoards() {

@@ -2,6 +2,7 @@ import { createEngine } from './engine/engine.js';
 import { buildLayout } from './ui/layout.js';
 import { initBoards } from './ui/boards.js';
 import { initTransport } from './ui/transport.js';
+import { initProposals } from './ui/proposals.js';
 import { isNanoAvailable } from './engine/nano.js';
 
 const engine = createEngine();
@@ -15,10 +16,12 @@ function refreshContext() {
 
 function refreshAll() {
   boards.render();
+  proposals.render();
   transport.updateContextSpec();
 }
 
 const boards = initBoards(refs.boardsContainer, engine, refreshAll, refreshContext);
+const proposals = initProposals(refs.proposalsContainer, engine, refreshAll);
 const transport = initTransport(refs, engine, refreshAll);
 
 refreshAll();

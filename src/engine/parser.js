@@ -10,6 +10,7 @@ const SECTION_MARKERS = {
   assumptions: '===ASSUMPTIONS===',
   facts: '===FACTS===',
   ambient: '===AMBIENT===',
+  propose: '===PROPOSE===',
   end: '===END===',
 };
 
@@ -17,6 +18,7 @@ const ALL_END_MARKERS = [
   SECTION_MARKERS.assumptions,
   SECTION_MARKERS.facts,
   SECTION_MARKERS.ambient,
+  SECTION_MARKERS.propose,
   SECTION_MARKERS.end,
 ];
 
@@ -217,13 +219,18 @@ export function parseReplyBlocks(text) {
   const assumptionsSection = extractSection(text, SECTION_MARKERS.assumptions, [
     SECTION_MARKERS.facts,
     SECTION_MARKERS.ambient,
+    SECTION_MARKERS.propose,
     SECTION_MARKERS.end,
   ]);
   const factsSection = extractSection(text, SECTION_MARKERS.facts, [
     SECTION_MARKERS.ambient,
+    SECTION_MARKERS.propose,
     SECTION_MARKERS.end,
   ]);
-  const ambientSection = extractSection(text, SECTION_MARKERS.ambient, [SECTION_MARKERS.end]);
+  const ambientSection = extractSection(text, SECTION_MARKERS.ambient, [
+    SECTION_MARKERS.propose,
+    SECTION_MARKERS.end,
+  ]);
 
   return {
     memory: parseMemoryLines(memorySection),

@@ -184,7 +184,10 @@ export function initTransport(refs, engine, onUpdate) {
       return;
     }
 
-    setStatus(`Parsed ${formatAdded(result)} into boards.`, 'success');
+    const proposalSuffix = result.proposals
+      ? ` · ${result.proposals} pending proposal${result.proposals === 1 ? '' : 's'} — review above the reply pane.`
+      : '';
+    setStatus(`Parsed ${formatAdded(result)} into boards.${proposalSuffix}`, 'success');
     highlightStep(4);
   }
 

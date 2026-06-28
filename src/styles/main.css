@@ -953,3 +953,107 @@ body {
   font-size: 0.78rem;
   color: var(--text-quiet);
 }
+
+/* ---------- R4: proposals queue ---------- */
+
+.proposals-container {
+  padding: 0 var(--page-pad);
+}
+
+.proposals-panel {
+  background: var(--surface);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  margin: 0 0 var(--section-gap);
+  box-shadow: var(--shadow-card);
+}
+
+.proposals-header {
+  margin-bottom: 0.75rem;
+}
+
+.proposals-title {
+  margin: 0 0 0.2rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--warning);
+}
+
+.proposals-subtitle {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.proposals-batch {
+  display: flex;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+
+.proposals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.proposal-row {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.proposal-row.proposal-high-impact {
+  border-left-color: #ff5d4f;
+  background: linear-gradient(145deg, rgba(255, 93, 79, 0.08), var(--surface-muted) 60%);
+}
+
+.proposal-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.proposal-type {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--warning);
+}
+
+.proposal-summary {
+  font-size: 0.92rem;
+  color: var(--text);
+}
+
+.proposal-impact-pill {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  color: #ff5d4f;
+  border: 1px solid #ff5d4f;
+  border-radius: var(--radius-pill);
+  padding: 0.12rem 0.55rem;
+  margin-left: auto;
+  letter-spacing: 0.02em;
+}
+
+.proposal-rationale {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.proposal-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+}

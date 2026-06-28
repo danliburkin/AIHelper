@@ -88,6 +88,10 @@ export function buildLayout(root) {
 
   outbound.append(taskRow, previewHeader, promptPreview, outboundActions);
 
+  const proposalsContainer = document.createElement('div');
+  proposalsContainer.id = 'proposals-container';
+  proposalsContainer.className = 'proposals-container';
+
   const main = document.createElement('main');
   main.className = 'app-main';
 
@@ -197,7 +201,7 @@ export function buildLayout(root) {
     footerBar,
   );
 
-  shell.append(header, outbound, main, footer);
+  shell.append(header, outbound, proposalsContainer, main, footer);
   root.append(shell);
 
   return {
@@ -217,6 +221,7 @@ export function buildLayout(root) {
     importBtn,
     importInput,
     recordView,
+    proposalsContainer,
     status,
     workflowSteps: workflow,
   };

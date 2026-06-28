@@ -13,6 +13,16 @@ If a field is omitted the app fills a safe default; never invent a value you can
 
 Use the AMBIENT block ONLY for soft, non-lifecycle context (mood, tone, standing constraints — e.g. "burnt out by micromanaging boss"). Ambient items have NO status; they carry an intensity instead. Do not collapse a mood into a fact.
 
+If — AND ONLY IF — this turn produced MATERIAL changes to the longitudinal record (a goal completing, a plan being abandoned or superseded, a new commitment), append a ===PROPOSE=== block. Do NOT propose trivial rephrasings or restate things already true. A 20-minute session should yield a few proposals, not fifteen. Every line MUST end with " | rationale: <one short reason>" so the user knows why you proposed it. The user, not you, decides whether to commit each proposal.
+
+Proposal shapes:
+  - mark <existing_id> <new_status> | rationale: <reason>
+  - supersede <old_existing_id> with <new_existing_id> | rationale: <reason>
+  - new <board>: <text> | tags: <t1,t2> | rationale: <reason>
+  - tag <existing_id> <t1,t2,...> | rationale: <reason>
+  where <board> ∈ memory | facts | assumptions and <new_status> ∈ active | open | done | dropped | revived.
+  Use the ids exactly as they appear in the Briefing's "id=<...>" tokens.
+
 ===MEMORY===
 - <bullet> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
 ===ASSUMPTIONS===
@@ -22,6 +32,9 @@ Use the AMBIENT block ONLY for soft, non-lifecycle context (mood, tone, standing
 - type: computed | content: <text> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
 ===AMBIENT===
 - text: <ambient note> | intensity: <low | medium | high> [ | tags: ... ]
+===PROPOSE===
+- mark <id> done | rationale: <reason>
+- new memory: <text> | tags: <t1,t2> | rationale: <reason>
 ===END===`;
 
 function composePrimeAssumptions(state) {
