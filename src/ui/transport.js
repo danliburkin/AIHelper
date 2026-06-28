@@ -156,9 +156,18 @@ export function initTransport(refs, engine, onUpdate) {
     return parts.join(', ');
   }
 
+  // Tracking the last successfully ingested text protects against double-ingest
+  // when both the paste event and the explicit Parse-reply click fire for the
+  // same reply (which would otherwise create duplicate proposals).
+  let lastIngestedText = '';
+
   async function ingestFromText(text) {
     if (!text.trim()) {
       setStatus('Paste the chatbot reply in the box on the left.', 'warning');
+      return;
+    }
+    if (text === lastIngestedText) {
+      // Already ingested this exact reply — silent no-op.
       return;
     }
 
@@ -189,6 +198,7 @@ export function initTransport(refs, engine, onUpdate) {
       : '';
     setStatus(`Parsed ${formatAdded(result)} into boards.${proposalSuffix}`, 'success');
     highlightStep(4);
+    lastIngestedText = text;
   }
 
   replyArea.addEventListener('paste', () => {
