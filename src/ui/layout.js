@@ -148,13 +148,31 @@ export function buildLayout(root) {
   contextSpec.id = 'context-spec';
   contextSpec.className = 'context-spec';
 
+  const recordViewLabel = document.createElement('h2');
+  recordViewLabel.textContent = 'Record view (longitudinal)';
+  recordViewLabel.className = 'record-view-label';
+  const recordView = document.createElement('div');
+  recordView.id = 'record-view';
+  recordView.className = 'record-view';
+
   const footerBar = document.createElement('div');
   footerBar.className = 'footer-bar';
   const exportBtn = document.createElement('button');
   exportBtn.type = 'button';
   exportBtn.id = 'export-btn';
   exportBtn.className = 'btn btn-ghost';
-  exportBtn.textContent = 'Export .md';
+  exportBtn.textContent = 'Export record';
+
+  const importBtn = document.createElement('button');
+  importBtn.type = 'button';
+  importBtn.id = 'import-btn';
+  importBtn.className = 'btn btn-ghost';
+  importBtn.textContent = 'Import record';
+  const importInput = document.createElement('input');
+  importInput.type = 'file';
+  importInput.id = 'import-input';
+  importInput.accept = '.md,.markdown,.json,.txt,text/markdown,application/json,text/plain';
+  importInput.hidden = true;
 
   const status = document.createElement('p');
   status.id = 'status';
@@ -168,8 +186,16 @@ export function buildLayout(root) {
   retryCopyBtn.textContent = 'Copy decorated prompt';
   retryCopyBtn.hidden = true;
 
-  footerBar.append(exportBtn, retryCopyBtn, status);
-  footer.append(contextLabel, contextSpec, revocationsLabel, revocationsPreview, footerBar);
+  footerBar.append(exportBtn, importBtn, importInput, retryCopyBtn, status);
+  footer.append(
+    recordViewLabel,
+    recordView,
+    contextLabel,
+    contextSpec,
+    revocationsLabel,
+    revocationsPreview,
+    footerBar,
+  );
 
   shell.append(header, outbound, main, footer);
   root.append(shell);
@@ -188,6 +214,9 @@ export function buildLayout(root) {
     copyBtn,
     retryCopyBtn,
     exportBtn,
+    importBtn,
+    importInput,
+    recordView,
     status,
     workflowSteps: workflow,
   };

@@ -204,7 +204,7 @@ Parser: `src/engine/parser.js` — tested for well-formed, partial, and malforme
 ## Remaining B1 polish (~15%) — keep, but secondary to the record work
 
 - [ ] Prove end-to-end with real chatbot sessions
-- [ ] Import `.md` — load a previously exported Context Spec (export exists, import does not) → **folded into R2**
+- [x] Import `.md` — load a previously exported Context Spec (export exists, import does not) → **folded into R2** ✓
 - [ ] Better override UX — in-app modals instead of `window.prompt`/`confirm`
 - [ ] Assumption edit revocations — surface old vs new in DELETE block
 - [ ] Rewind from spiral — "Restore to here" on a turn card
@@ -262,12 +262,12 @@ Promote each board item from a flat string to a typed record. **Two record types
 
 ### R2 — Local persistence + reload (the "database", trivial)
 
-- [ ] Serialize the full record set to one local Markdown/JSON file (extend existing Context Spec export).
-- [ ] Import: load a previously saved record back into the engine (the existing "Import .md" task, generalized to the typed record).
-- [ ] On load, the record is the working state; the next prompt is composed from it on any model.
-- [ ] No server, no IndexedDB required — file in / file out. (`localStorage` still a non-goal; user owns the file.)
-- [ ] Rendered view (not raw JSON): a simple HTML/Obsidian-like render of the record — active goals up top, a timeline, superseded/done items collapsed, ambient context shown separately. Read-only is fine for R2.
-- [ ] Tests: round-trip export → import preserves all record fields including status/timestamps/provenance/tags/links.
+- [x] Serialize the full record set to one local Markdown/JSON file (extend existing Context Spec export).
+- [x] Import: load a previously saved record back into the engine (the existing "Import .md" task, generalized to the typed record).
+- [x] On load, the record is the working state; the next prompt is composed from it on any model.
+- [x] No server, no IndexedDB required — file in / file out. (`localStorage` still a non-goal; user owns the file.)
+- [x] Rendered view (not raw JSON): a simple HTML/Obsidian-like render of the record — active goals up top, a timeline, superseded/done items collapsed, ambient context shown separately. Read-only is fine for R2.
+- [x] Tests: round-trip export → import preserves all record fields including status/timestamps/provenance/tags/links.
 
 **Ships:** the record survives across sessions and reloads into the next conversation, on any model.
 

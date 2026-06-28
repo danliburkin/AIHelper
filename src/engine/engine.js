@@ -11,6 +11,13 @@ import {
   toStatefulRecord,
   toAmbientRecord,
 } from './records.js';
+import {
+  buildSnapshot,
+  applySnapshot,
+  snapshotToMarkdown,
+  snapshotFromMarkdown,
+  renderSnapshotMarkdown,
+} from './persistence.js';
 
 function newId() {
   return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -323,6 +330,45 @@ export function createEngine() {
 
     setTopic(topic) {
       state.topic = topic;
+    },
+
+    /**
+     * R2 — persistence. Build the canonical snapshot envelope.
+     */
+    exportSnapshot() {
+      return buildSnapshot(state);
+    },
+
+    /**
+     * R2 — produce the full export file (markdown body + embedded JSON).
+     */
+    exportRecordMarkdown() {
+      return snapshotToMarkdown(buildSnapshot(state));
+    },
+
+    /**
+     * R2 — render the human-readable view of the current record without exporting.
+     */
+    renderRecordMarkdown() {
+      return renderSnapshotMarkdown(buildSnapshot(state));
+    },
+
+    /**
+     * R2 — apply a previously exported record. Replaces working state.
+     * @param {string} text - file contents
+     * @returns {{ memory: number, facts: number, assumptions: number, ambient: number, exported_at: string|null }}
+     */
+    importRecord(text) {
+      const snapshot = snapshotFromMarkdown(text);
+      applySnapshot(state, snapshot);
+      return {
+        memory: state.memory.length,
+        facts: state.facts.length,
+        assumptions: state.assumptions.length,
+        ambient: state.ambient.length,
+        exported_at: snapshot.exported_at || null,
+        originalTask: state.originalTask,
+      };
     },
   };
 }

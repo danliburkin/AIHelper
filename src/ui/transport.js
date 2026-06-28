@@ -12,6 +12,9 @@ export function initTransport(refs, engine, onUpdate) {
     copyBtn,
     retryCopyBtn,
     exportBtn,
+    importBtn,
+    importInput,
+    recordView,
     status,
     workflowSteps,
   } = refs;
@@ -82,7 +85,67 @@ export function initTransport(refs, engine, onUpdate) {
 
   function updateContextSpec() {
     contextSpec.textContent = engine.buildContextSpec();
+    updateRecordView();
     updatePromptPreview();
+  }
+
+  function updateRecordView() {
+    if (!recordView) return;
+    const markdown = engine.renderRecordMarkdown();
+    recordView.replaceChildren();
+    for (const block of markdownBlocks(markdown)) {
+      recordView.append(block);
+    }
+  }
+
+  function markdownBlocks(md) {
+    const out = [];
+    let listEl = null;
+    for (const rawLine of md.split('\n')) {
+      const line = rawLine.trimEnd();
+      if (line.startsWith('# ')) {
+        listEl = null;
+        const h = document.createElement('h3');
+        h.className = 'record-h1';
+        h.textContent = line.slice(2);
+        out.push(h);
+      } else if (line.startsWith('## ')) {
+        listEl = null;
+        const h = document.createElement('h4');
+        h.className = 'record-h2';
+        h.textContent = line.slice(3);
+        out.push(h);
+      } else if (line.startsWith('- ')) {
+        if (!listEl) {
+          listEl = document.createElement('ul');
+          listEl.className = 'record-list';
+          out.push(listEl);
+        }
+        const li = document.createElement('li');
+        li.textContent = line.slice(2);
+        listEl.append(li);
+      } else if (line.startsWith('> ')) {
+        listEl = null;
+        const blockquote = document.createElement('blockquote');
+        blockquote.className = 'record-quote';
+        blockquote.textContent = line.slice(2);
+        out.push(blockquote);
+      } else if (line.startsWith('_') && line.endsWith('_')) {
+        listEl = null;
+        const small = document.createElement('p');
+        small.className = 'record-muted';
+        small.textContent = line.slice(1, -1);
+        out.push(small);
+      } else if (line === '') {
+        listEl = null;
+      } else {
+        listEl = null;
+        const p = document.createElement('p');
+        p.textContent = line;
+        out.push(p);
+      }
+    }
+    return out;
   }
 
   function formatAdded(added) {
@@ -175,16 +238,44 @@ export function initTransport(refs, engine, onUpdate) {
   retryCopyBtn.addEventListener('click', copyToChatbot);
 
   exportBtn.addEventListener('click', () => {
-    const markdown = engine.buildContextSpec();
+    const markdown = engine.exportRecordMarkdown();
     const blob = new Blob([markdown], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'context-spec.md';
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    link.download = `context-lens-record-${stamp}.md`;
     link.click();
     URL.revokeObjectURL(url);
-    setStatus('Exported context-spec.md', 'success');
+    setStatus('Exported the full record (markdown + embedded JSON).', 'success');
   });
+
+  if (importBtn && importInput) {
+    importBtn.addEventListener('click', () => {
+      importInput.click();
+    });
+
+    importInput.addEventListener('change', async () => {
+      const file = importInput.files && importInput.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const result = engine.importRecord(text);
+        onUpdate();
+        const totals = `${result.memory} memory, ${result.facts} facts, ${result.assumptions} assumptions, ${result.ambient} ambient`;
+        const when = result.exported_at ? ` (exported ${result.exported_at})` : '';
+        setStatus(`Imported record: ${totals}${when}.`, 'success');
+        if (result.originalTask) {
+          taskInput.value = result.originalTask;
+          updatePromptPreview();
+        }
+      } catch (err) {
+        setStatus(`Import failed: ${err.message}`, 'warning');
+      } finally {
+        importInput.value = '';
+      }
+    });
+  }
 
   function highlightStep(step) {
     if (!workflowSteps) return;
