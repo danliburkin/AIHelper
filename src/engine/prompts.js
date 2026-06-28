@@ -1,14 +1,26 @@
 import { buildContextSpec, buildRevocations, hasRevocations, buildRevocationAlert } from './contextSpec.js';
 
-const BLOCK_FORMAT = `Use this exact block format at the end of your reply:
+const BLOCK_FORMAT = `Use this exact block format at the end of your reply.
+
+For every stateful item (memory / facts / assumptions) you MAY append, in any order, these optional trailing fields after the existing payload, each prefixed with " | ":
+  | status: <open | active | done | dropped | revived>
+  | confidence: <high | medium | low>
+  | provenance: <user_asserted | model_proposed_user_confirmed | inferred_from_tool | stale_superseded>
+  | tags: <comma-separated topic tags>
+
+If a field is omitted the app fills a safe default; never invent a value you cannot defend.
+
+Use the AMBIENT block ONLY for soft, non-lifecycle context (mood, tone, standing constraints — e.g. "burnt out by micromanaging boss"). Ambient items have NO status; they carry an intensity instead. Do not collapse a mood into a fact.
 
 ===MEMORY===
-- <bullet>
+- <bullet> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
 ===ASSUMPTIONS===
-- assumption: <text> | reason: <text>
+- assumption: <text> | reason: <text> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
 ===FACTS===
-- type: retrieved | content: <text> | source: <url> | date: <date>
-- type: computed | content: <text>
+- type: retrieved | content: <text> | source: <url> | date: <date> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
+- type: computed | content: <text> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
+===AMBIENT===
+- text: <ambient note> | intensity: <low | medium | high> [ | tags: ... ]
 ===END===`;
 
 function composePrimeAssumptions(state) {

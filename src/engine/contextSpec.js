@@ -1,6 +1,19 @@
+function recordTags(item) {
+  if (!Array.isArray(item.tags) || item.tags.length === 0) return '';
+  return ` #${item.tags.join(' #')}`;
+}
+
+function recordBadge(item) {
+  const parts = [];
+  if (item.status) parts.push(item.status);
+  if (item.confidence) parts.push(`${item.confidence} conf`);
+  if (parts.length === 0) return '';
+  return ` _(${parts.join(' · ')})_`;
+}
+
 /**
  * Build markdown Context Spec from active board state.
- * @param {{ memory: object[], facts: object[], assumptions: object[] }} boards
+ * @param {{ memory: object[], facts: object[], assumptions: object[], ambient?: object[] }} boards
  */
 export function buildContextSpec(boards) {
   const lines = ['# Context Spec', ''];
@@ -11,7 +24,7 @@ export function buildContextSpec(boards) {
     lines.push('_No active memory._');
   } else {
     for (const item of activeMemory) {
-      lines.push(`- ${item.committedText}`);
+      lines.push(`- ${item.committedText}${recordBadge(item)}${recordTags(item)}`);
     }
   }
   lines.push('');
@@ -24,9 +37,11 @@ export function buildContextSpec(boards) {
     for (const fact of activeFacts) {
       if (fact.type === 'retrieved') {
         const meta = [fact.sourceUrl, fact.sourceDate].filter(Boolean).join(' · ');
-        lines.push(`- [retrieved] ${fact.content}${meta ? ` (${meta})` : ''}`);
+        lines.push(
+          `- [retrieved] ${fact.content}${meta ? ` (${meta})` : ''}${recordBadge(fact)}${recordTags(fact)}`,
+        );
       } else {
-        lines.push(`- [computed] ${fact.content}`);
+        lines.push(`- [computed] ${fact.content}${recordBadge(fact)}${recordTags(fact)}`);
       }
     }
   }
@@ -38,7 +53,22 @@ export function buildContextSpec(boards) {
     lines.push('_No active assumptions._');
   } else {
     for (const assumption of activeAssumptions) {
-      lines.push(`- ${assumption.statement} — likely because: ${assumption.reason}`);
+      lines.push(
+        `- ${assumption.statement} — likely because: ${assumption.reason}${recordBadge(assumption)}${recordTags(assumption)}`,
+      );
+    }
+  }
+  lines.push('');
+
+  const ambient = (boards.ambient || []).filter((x) => x.active !== false && x.intensity !== 'stale');
+  lines.push('## Ambient context');
+  if (ambient.length === 0) {
+    lines.push('_No ambient context._');
+  } else {
+    for (const item of ambient) {
+      const intensity = item.intensity ? ` _(intensity: ${item.intensity})_` : '';
+      const tags = recordTags(item);
+      lines.push(`- ${item.text}${intensity}${tags}`);
     }
   }
 

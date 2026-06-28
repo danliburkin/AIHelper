@@ -390,9 +390,15 @@ body {
   letter-spacing: 0.14em;
 }
 
+.board-ambient {
+  background: linear-gradient(145deg, rgba(125, 212, 160, 0.12) 0%, var(--surface-muted) 42%, #14141a 100%);
+  border-top: 3px solid var(--success);
+}
+
 .board-memory .board-title { color: var(--memory); }
 .board-facts .board-title { color: var(--facts); }
 .board-assumptions .board-title { color: var(--assumptions); }
+.board-ambient .board-title { color: var(--success); }
 
 .board-empty {
   margin: 0;
@@ -799,4 +805,90 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---------- R1: typed record pills ---------- */
+
+.record-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+}
+
+.meta-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.15rem 0.45rem;
+  cursor: pointer;
+}
+
+.meta-key {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-quiet);
+}
+
+.record-status-select,
+.record-intensity-select {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.2rem;
+  cursor: pointer;
+}
+
+.confidence-pill,
+.provenance-pill,
+.weak-pill,
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.confidence-high { color: var(--success); border-color: var(--success); }
+.confidence-medium { color: var(--warning); border-color: var(--warning); }
+.confidence-low { color: var(--text-muted); border-color: var(--text-quiet); }
+
+.provenance-user_asserted { color: var(--success); border-color: var(--success); }
+.provenance-inferred_from_tool { color: var(--facts); border-color: var(--facts); }
+.provenance-model_proposed_user_confirmed { color: var(--text-secondary); }
+.provenance-stale_superseded { color: var(--text-muted); text-decoration: line-through; }
+
+.weak-pill {
+  color: var(--warning);
+  border-color: var(--warning);
+  background: var(--warning-soft);
+  font-weight: 600;
+}
+
+.tag-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.tag-pill {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
 }
