@@ -31,7 +31,10 @@ describe('end-to-end engine loop', () => {
     expect(after).toContain('Skip basics');
     expect(after).toContain('DELETE from your answer');
     expect(after).toContain('DISCARD your previous answer');
-    expect(after).toContain('_No active assumptions._');
+    // R3: the briefing replaced the legacy Context Spec block; the revoked
+    // assumption must not appear in the active stateful record section.
+    expect(after).toContain('===BRIEFING===');
+    expect(after.split('===END_BRIEFING===')[0]).not.toContain('[assumptions]');
   });
 
   it('memory override pins committed text in context spec', async () => {

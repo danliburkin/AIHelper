@@ -275,16 +275,16 @@ Promote each board item from a flat string to a typed record. **Two record types
 
 The core differentiator and the make-or-break task (all external reviewers flagged this as the hard part). Each turn, compose the prompt from the **relevant, currently-valid slice** of the record. **No embeddings, no semantic search, no Graphiti at this rung** — they are not needed below a few hundred items, and injecting everything is the exact failure ("lost in the middle") the assembler exists to prevent.
 
-- [ ] `buildBriefing(currentTopicTags)` applies this ordered filter:
-  1. **Status gate (deterministic):** include only stateful records with `status` in `{active, open}`. Drop `done` / `dropped` / `stale_superseded` entirely (unless the user explicitly queries history).
-  2. **Tag match:** of those, include records whose `tags[]` intersect the current thread's topic tags. Tags are written at create/commit time (R1/R4), so this is a cheap set lookup, not inference.
+- [x] `buildBriefing(currentTopicTags)` applies this ordered filter:
+  1. **Status gate (deterministic):** include only stateful records with `status` in `{active, open, revived}`. Drop `done` / `dropped` / `stale_superseded` entirely (unless the user explicitly queries history). Items the user toggled off in the UI (`active=false`) are also revoked.
+  2. **Tag match:** of those, include records whose `tags[]` intersect the current thread's topic tags. Tags are derived from explicit `#tag` mentions first, then by token-set intersection with known record tags — no inference. Falls back to the whole active pool when nothing matches (better an over-broad briefing than an empty one).
   3. **Recency/decay:** prefer recently `updated_at`; newer wins ties.
-  4. **Always-include ambient set:** include current ambient-context records (mood/constraints) regardless of status — a coach always needs them. Drop only ambient items whose intensity has decayed to `stale`.
+  4. **Always-include ambient set:** include current ambient-context records (mood/constraints) regardless of status — a coach always needs them. Drop only ambient items whose intensity has decayed to `stale`. Ambient is protected from the token-cap prune.
   5. **Hard token cap:** if the assembled set exceeds the budget, drop lowest confidence first, then oldest, until it fits.
-- [ ] **Supersession:** when a record supersedes/updated_by another, emit the superseded one as explicitly _no-longer-true_ (or omit it), so stale facts stop contaminating answers.
-- [ ] **Time awareness:** include `created_at` / `updated_at`; on reopen after a gap, state elapsed time so the model does not assume nothing happened.
-- [ ] Compose the briefing as a prepended block; this replaces the ad-hoc Context Spec prepend.
-- [ ] Tests: a superseded fact never appears as current; a stale `done` goal is excluded; an off-topic record is excluded by the tag gate; ambient items always present; elapsed-time line present on gap; assembled set respects the token cap.
+- [x] **Supersession:** when a record supersedes/updated_by another, emit the superseded one as explicitly _no-longer-true_ (or omit it), so stale facts stop contaminating answers.
+- [x] **Time awareness:** include `created_at` / `updated_at`; on reopen after a gap, state elapsed time so the model does not assume nothing happened.
+- [x] Compose the briefing as a prepended block; this replaces the ad-hoc Context Spec prepend.
+- [x] Tests: a superseded fact never appears as current; a stale `done` goal is excluded; an off-topic record is excluded by the tag gate; ambient items always present; elapsed-time line present on gap; assembled set respects the token cap.
 
 **Ships:** threads stop decaying as they lengthen; a thread reopened after a long gap arrives pre-briefed.
 

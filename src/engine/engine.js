@@ -18,6 +18,7 @@ import {
   snapshotFromMarkdown,
   renderSnapshotMarkdown,
 } from './persistence.js';
+import { buildBriefing, deriveTopicTags } from './briefing.js';
 
 function newId() {
   return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -123,20 +124,28 @@ export function createEngine() {
     originalTask: '',
     topic: '',
     hasCorrectiveEdits: false,
+    lastActivityAt: null,
   };
 
   function markEdited() {
     state.hasCorrectiveEdits = true;
+    state.lastActivityAt = nowIso();
   }
 
   function touch(item) {
     if (!item) return;
-    item.updated_at = nowIso();
+    const stamp = nowIso();
+    item.updated_at = stamp;
+    state.lastActivityAt = stamp;
   }
 
   return {
     ingestReply(text) {
-      return appendParsed(state, parseReplyBlocks(text));
+      const added = appendParsed(state, parseReplyBlocks(text));
+      if (added.memory + added.assumptions + added.facts + added.ambient > 0) {
+        state.lastActivityAt = nowIso();
+      }
+      return added;
     },
 
     async ingestReplyWithFallback(text) {
@@ -153,6 +162,9 @@ export function createEngine() {
 
       const added = appendParsed(state, parsed);
       state.hasCorrectiveEdits = false;
+      if (added.memory + added.assumptions + added.facts + added.ambient > 0) {
+        state.lastActivityAt = nowIso();
+      }
 
       return {
         ...added,
@@ -333,10 +345,38 @@ export function createEngine() {
     },
 
     /**
+     * R3 — compose the briefing block (the slice of the record to inject this turn).
+     * @param {object} [opts] - forwarded to buildBriefing
+     */
+    buildBriefing(opts = {}) {
+      const merged = {
+        questionText: state.originalTask || state.topic || '',
+        lastActivityAt: opts.lastActivityAt || state.lastActivityAt,
+        ...opts,
+      };
+      return buildBriefing(state, merged);
+    },
+
+    /**
+     * R3 — exposed for the UI / R4: derive topic tags from a question string.
+     */
+    deriveTopicTags(text) {
+      const knownTags = new Set();
+      for (const board of [state.memory, state.facts, state.assumptions, state.ambient || []]) {
+        for (const item of board) {
+          for (const tag of item.tags || []) knownTags.add(String(tag).toLowerCase());
+        }
+      }
+      return deriveTopicTags(text, [...knownTags]);
+    },
+
+    /**
      * R2 — persistence. Build the canonical snapshot envelope.
      */
     exportSnapshot() {
-      return buildSnapshot(state);
+      const snap = buildSnapshot(state);
+      snap.lastActivityAt = state.lastActivityAt;
+      return snap;
     },
 
     /**
@@ -361,6 +401,20 @@ export function createEngine() {
     importRecord(text) {
       const snapshot = snapshotFromMarkdown(text);
       applySnapshot(state, snapshot);
+      // Preserve lastActivityAt from the exported snapshot when present,
+      // otherwise derive it from the max updated_at across boards.
+      if (snapshot.lastActivityAt) {
+        state.lastActivityAt = snapshot.lastActivityAt;
+      } else {
+        let max = null;
+        for (const board of [state.memory, state.facts, state.assumptions, state.ambient]) {
+          for (const item of board) {
+            const stamp = item.updated_at || item.last_seen_at || item.created_at;
+            if (stamp && (!max || stamp > max)) max = stamp;
+          }
+        }
+        state.lastActivityAt = max;
+      }
       return {
         memory: state.memory.length,
         facts: state.facts.length,
@@ -368,6 +422,7 @@ export function createEngine() {
         ambient: state.ambient.length,
         exported_at: snapshot.exported_at || null,
         originalTask: state.originalTask,
+        lastActivityAt: state.lastActivityAt,
       };
     },
   };

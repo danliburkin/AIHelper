@@ -1,4 +1,5 @@
 import { buildContextSpec, buildRevocations, hasRevocations, buildRevocationAlert } from './contextSpec.js';
+import { buildBriefing } from './briefing.js';
 
 const BLOCK_FORMAT = `Use this exact block format at the end of your reply.
 
@@ -49,17 +50,19 @@ function composeTask(state) {
   }
 
   const task = state.originalTask || '(no task set)';
-  const contextSpec = buildContextSpec(state);
+  const briefing = buildBriefing(state, {
+    questionText: task,
+    lastActivityAt: state.lastActivityAt,
+  });
 
-  return `Perform the following task. Use the Context Spec below as binding constraints where provided.
+  return `${briefing.text}
+
+Perform the following task. Use the briefing above as binding context.
 
 ## Task
 """
 ${task}
 """
-
-## Context Spec
-${contextSpec}
 
 Answer the task fully, then append the blocks describing the assumptions and facts your answer rested on.
 
@@ -68,7 +71,10 @@ ${BLOCK_FORMAT}`;
 
 function composeRestart(state) {
   const task = state.originalTask || '(no task set)';
-  const contextSpec = buildContextSpec(state);
+  const briefing = buildBriefing(state, {
+    questionText: task,
+    lastActivityAt: state.lastActivityAt,
+  });
   const revocations = buildRevocations(state);
   const alert = hasRevocations(state) ? `${buildRevocationAlert(state)}\n\n` : '';
 
@@ -85,7 +91,7 @@ function composeRestart(state) {
 2. Every item in ===REVOKED_BY_USER_DO_NOT_USE=== and every "DELETE" line below is FORBIDDEN — remove them from your reasoning.
 3. If an assumption was revoked (unchecked), your new answer MUST NOT treat it as true. Change the answer accordingly.
 4. If memory was overridden, use only the "USE INSTEAD" wording; never the "DELETE/IGNORE" wording.
-5. Use ONLY the Corrected Context Spec as binding context. Ignore everything else from earlier in this conversation.
+5. Use ONLY the Briefing below as binding context. Ignore everything else from earlier in this conversation.
 6. Do not perform fresh retrieval — treat listed facts as the frozen evidence pool.
 
 ## Original task
@@ -93,8 +99,7 @@ function composeRestart(state) {
 ${task}
 """
 
-${revocationBlock}## Corrected Context Spec (authoritative — only these items apply)
-${contextSpec}
+${revocationBlock}${briefing.text}
 
 Write a completely NEW answer to the task, then append fresh blocks describing only the assumptions and facts this new answer rested on.
 
