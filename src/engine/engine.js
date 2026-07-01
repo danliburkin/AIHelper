@@ -129,6 +129,7 @@ export function createEngine() {
     hasCorrectiveEdits: false,
     lastActivityAt: null,
     pendingProposals: [],
+    turns: [],
   };
 
   function markEdited() {
@@ -426,6 +427,56 @@ export function createEngine() {
 
     setTopic(topic) {
       state.topic = topic;
+    },
+
+    /**
+     * Record a turn in the conversation spiral. Call after a successful ingest.
+     * Captures a full record snapshot so the turn can be restored later.
+     *
+     * @param {string} question - the question that produced this reply
+     * @param {{ memory: number, facts: number, assumptions: number, ambient: number }} added
+     * @param {number} [revokedCount] - items the user had suppressed before sending this turn's prompt
+     */
+    addTurn(question, added, revokedCount = 0) {
+      const snapshot = buildSnapshot(state);
+      snapshot.lastActivityAt = state.lastActivityAt;
+      state.turns.push({
+        index: state.turns.length + 1,
+        question: String(question || '').trim(),
+        timestamp: nowIso(),
+        added: { ...added },
+        revokedCount,
+        snapshot,
+      });
+    },
+
+    /**
+     * Return a shallow copy of the turn log.
+     * @returns {Array<object>}
+     */
+    getTurns() {
+      return state.turns.map((t) => ({ ...t, added: { ...t.added } }));
+    },
+
+    /**
+     * Restore board state to a previous turn's snapshot. Turns after the
+     * rewound index are discarded. hasCorrectiveEdits and pendingProposals
+     * are reset; originalTask is updated to the rewound turn's question.
+     *
+     * @param {number} turnIndex - 1-based turn number to restore to
+     * @returns {boolean} false when turnIndex is out of range
+     */
+    restoreToTurn(turnIndex) {
+      const turn = state.turns.find((t) => t.index === turnIndex);
+      if (!turn) return false;
+      // Save the live turn log before applySnapshot overwrites state.turns
+      // with the (typically empty) turns inside the nested snapshot.
+      const savedTurns = state.turns.filter((t) => t.index <= turnIndex);
+      applySnapshot(state, turn.snapshot);
+      if (turn.snapshot.lastActivityAt) state.lastActivityAt = turn.snapshot.lastActivityAt;
+      state.pendingProposals = [];
+      state.turns = savedTurns;
+      return true;
     },
 
     /**

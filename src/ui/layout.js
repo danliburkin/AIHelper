@@ -138,7 +138,12 @@ export function buildLayout(root) {
   const boardsContainer = document.createElement('div');
   boardsContainer.id = 'boards-container';
   boardsContainer.className = 'boards-container';
-  right.append(boardsLabel, boardsContainer);
+
+  const spiralContainer = document.createElement('div');
+  spiralContainer.id = 'spiral-container';
+  spiralContainer.className = 'spiral-container';
+
+  right.append(boardsLabel, boardsContainer, spiralContainer);
 
   main.append(left, right);
 
@@ -229,6 +234,7 @@ export function buildLayout(root) {
     importInput,
     recordView,
     proposalsContainer,
+    spiralContainer,
     status,
     workflowSteps: workflow,
   };

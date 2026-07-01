@@ -331,8 +331,8 @@ The briefing block is prepended to `composeTask` / `composeRestart` in place of 
 - [x] Import `.md` — load a previously exported Context Spec → **done in R2** (generalized to typed record)
 - [x] Better override UX — in-app modals instead of `window.prompt`/`confirm`
 - [x] Assumption edit revocations — surface old vs new in DELETE block
-- [ ] Rewind from spiral — "Restore to here" on a turn card
-- [ ] Export spiral — include turn log in `.md` export
+- [x] Rewind from spiral — "Restore to here" on a turn card
+- [x] Export spiral — include turn log in `.md` export
 - [ ] README for non-Cursor users
 
 ### R1 — Typed record schema ✓

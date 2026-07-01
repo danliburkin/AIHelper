@@ -208,6 +208,20 @@ export function initTransport(refs, engine, onUpdate) {
     setStatus(`Parsed ${formatAdded(result)} into boards.${proposalSuffix}`, 'success');
     highlightStep(4);
     lastIngestedText = text;
+
+    // Record a turn in the spiral. Count revoked items at this point
+    // (items the user suppressed since the last ingest).
+    const boards = engine.getBoards();
+    const revokedCount =
+      boards.memory.filter((m) => !m.active).length +
+      boards.facts.filter((f) => !f.active).length +
+      boards.assumptions.filter((a) => !a.active).length;
+    engine.addTurn(taskInput.value.trim(), {
+      memory: result.memory,
+      facts: result.facts,
+      assumptions: result.assumptions,
+      ambient: result.ambient || 0,
+    }, revokedCount);
   }
 
   replyArea.addEventListener('paste', () => {

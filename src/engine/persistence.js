@@ -38,6 +38,7 @@ export function buildSnapshot(state) {
     facts: state.facts.map(deepClone),
     assumptions: state.assumptions.map(deepClone),
     ambient: (state.ambient || []).map(deepClone),
+    turns: (state.turns || []).map(deepClone),
   };
 }
 
@@ -62,6 +63,7 @@ export function applySnapshot(state, snapshot) {
   state.facts = (snapshot.facts || []).map(deepClone);
   state.assumptions = (snapshot.assumptions || []).map(deepClone);
   state.ambient = (snapshot.ambient || []).map(deepClone);
+  state.turns = (snapshot.turns || []).map(deepClone);
   state.hasCorrectiveEdits = false;
 }
 
@@ -176,6 +178,24 @@ export function renderSnapshotMarkdown(snapshot) {
       else if (item.statement) lines.push(assumptionLine(item));
       else if (item.text && !item.type) lines.push(ambientLine(item));
       else lines.push(factLine(item));
+    }
+    lines.push('');
+  }
+
+  const turns = snapshot.turns || [];
+  if (turns.length > 0) {
+    lines.push('## Conversation turns');
+    for (const turn of turns) {
+      const q = turn.question ? ` — "${turn.question.slice(0, 80)}${turn.question.length > 80 ? '…' : ''}"` : '';
+      const added = turn.added
+        ? Object.entries(turn.added)
+            .filter(([, v]) => v > 0)
+            .map(([k, v]) => `+${v} ${k}`)
+            .join(', ')
+        : '';
+      const revoked = turn.revokedCount > 0 ? ` −${turn.revokedCount} revoked` : '';
+      const addedStr = added ? ` (${added}${revoked})` : revoked ? ` (${revoked})` : '';
+      lines.push(`- **Turn ${turn.index}** ${turn.timestamp}${q}${addedStr}`);
     }
     lines.push('');
   }
