@@ -1,6 +1,7 @@
-# Context Lens — B1 Build Spec & Session Handoff
+# Context Lens — Build Spec & Session Handoff
 
-**Status:** B1 copy-paste engine ~85% complete (parser, smart prompts, clipboard UI, regenerate-with-DELETE, conversation spiral). **Direction updated (rev. 2):** the next phase is no longer "polish the per-answer editor" — it is **build the longitudinal record (the brain)**. See _Direction update_ and _New tasks_ below. The per-answer boards become the editor for the record at task **R4**.
+**Branch:** `cursor/longitudinal-record-r1-r4-6a94`
+**Status:** R1 + R2 + R3 + R4 all complete and passing (76 vitest tests, clean Vite build). See _New tasks_ progress below.
 
 ---
 
@@ -18,26 +19,13 @@ A **client-only single-page web app**. No backend. No server. No database. Sessi
 
 ## Direction update (rev. 2) — the record is the product
 
-Extended review changed the target. Summary (full reasoning in `Idea.md` rev. 2):
+The problem worth solving is **stateless, timeless memory**, not per-answer assumption editing. Flat bullets have no status, no time, no supersession, no provenance — so long threads rot and cross-session/cross-model continuity is lost.
 
-- The problem worth solving is **stateless, timeless memory**, not per-answer assumption editing. Flat bullets have no status, no time, no supersession, no provenance — so long threads rot and cross-session/cross-model continuity is lost.
-- **The record is the product.** The model is a swappable reasoner. The shell is already built by others (TypingMind, LibreChat, Msty, Poe, OpenRouter). Do not spend effort rebuilding the shell.
-- The differentiated, unbuilt-at-consumer-level part is **the brain**: a structured, status-tracked, timestamped, self-superseding record that re-briefs whichever model is in use each turn.
-- The existing copy-paste transport is already model-agnostic (clipboard works on every chatbox). **Keep it.** Build the record on top of it.
-- **Commit authority stays with the user.** The model proposes record edits and state transitions; the user ratifies. No silent state changes.
+**The record is the product.** The model is a swappable reasoner. The shell is already built by others (TypingMind, LibreChat, Msty, Poe, OpenRouter). Do not spend effort rebuilding the shell.
 
-The five new tasks (R1–R5) below are a ladder: each is independently usable and adds one capability.
+The differentiated, unbuilt-at-consumer-level part is **the brain**: a structured, status-tracked, timestamped, self-superseding record that re-briefs whichever model is in use each turn.
 
----
-
-## Build operations (read first — for the Cursor agent on the VM)
-
-- Build incrementally, **one task at a time, in order**: R1 → R2 → R3 → R4 → (R5 optional). Do not start a task until the previous one's tests pass.
-- **Commit after every task** (and after meaningful sub-steps) with a clear message, e.g. `R1: typed record schema + migration`. The commit is the checkpoint.
-- Running out of tokens / usage budget is expected. Handle it like this: finish the current edit to a compiling state, run tests, commit, then stop cleanly — do not abandon work mid-file. When the token budget replenishes, resume from the **last committed checkpoint**: re-read this file, check which `[x]` boxes are done and what the latest commit is, and continue with the next unchecked task. Do not restart the whole build from scratch; pick up where the commits left off.
-- Keep this file as the source of truth for progress. As each task completes, tick its `[ ]` → `[x]` here and commit that change too, so the next run (yours or a fresh session) can tell exactly where things stand.
-- If a task is too large for one budget window, split it at a natural sub-step, commit the partial work, tick the sub-steps done, and resume the remainder next window.
-- Never delete or rewrite working B1 code to "start over." The record layer (R1–R5) is **additive** behind the engine; the existing copy-paste loop must keep working throughout.
+The existing copy-paste transport is already model-agnostic (clipboard works on every chatbox). **Keep it.** Build the record on top of it. **Commit authority stays with the user.**
 
 ---
 
@@ -46,24 +34,22 @@ The five new tasks (R1–R5) below are a ladder: each is independently usable an
 ```bash
 npm install
 npm run dev          # → http://localhost:5173
-npm test             # vitest
-npm run build        # → dist/
+npm test             # vitest (76 tests)
+npm run build        # → dist/ (static, no Node at runtime)
 ```
-
-Requires Node/npm on PATH for development. The built `dist/` folder is static files only — no Node at runtime for end users.
 
 ---
 
 ## Stack (as built)
 
-| Layer    | Choice                                                                   |
-| -------- | ------------------------------------------------------------------------ |
-| Language | **Plain JavaScript** (ES modules) — not TypeScript                       |
-| Bundler  | Vite 6                                                                   |
-| UI       | Native DOM (`createElement`, `textContent`) — no React                   |
-| CSS      | Single `main.css` — dark editorial, corner gradients, responsive         |
-| Tests    | Vitest (`tests/parser.test.js`, `tests/smoke.test.js`, `tests/spiral.test.js`) |
-| Fonts    | Libre Baskerville, Inter, IBM Plex Mono (Google Fonts)                   |
+| Layer    | Choice                                                                               |
+| -------- | ------------------------------------------------------------------------------------ |
+| Language | **Plain JavaScript** (ES modules) — not TypeScript                                   |
+| Bundler  | Vite 6                                                                               |
+| UI       | Native DOM (`createElement`, `textContent`) — no React                               |
+| CSS      | Single `main.css` — dark editorial, corner gradients, responsive                     |
+| Tests    | Vitest — `tests/parser.test.js`, `records.test.js`, `persistence.test.js`, `briefing.test.js`, `proposals.test.js`, `smoke.test.js` |
+| Fonts    | Libre Baskerville, Inter, IBM Plex Mono (Google Fonts)                               |
 
 Optional: Gemini Nano via `window.LanguageModel` for parse/compose fallback only (`src/engine/nano.js`).
 
@@ -73,7 +59,7 @@ Optional: Gemini Nano via `window.LanguageModel` for parse/compose fallback only
 
 ```
 .
-├── CURSOR_BUILD.md          ← this file
+├── CURSOR_BUILD.md          ← this file (source of truth for progress)
 ├── index.html
 ├── package.json
 ├── vite.config.js
@@ -81,42 +67,46 @@ Optional: Gemini Nano via `window.LanguageModel` for parse/compose fallback only
 ├── src/
 │   ├── main.js              # boot, wire engine ↔ UI
 │   ├── engine/
-│   │   ├── parser.js        # parseReplyBlocks(text)
-│   │   ├── contextSpec.js   # buildContextSpec, buildRevocations, buildRevocationAlert
-│   │   ├── prompts.js       # composeSmartPrompt, composeTask, composeRestart
-│   │   ├── records.js       # typed record schema + helpers (R1+)
-│   │   ├── engine.js        # createEngine() factory
+│   │   ├── parser.js        # parseReplyBlocks + extractTrailingMeta (R1)
+│   │   ├── contextSpec.js   # buildContextSpec (now includes ambient + badges)
+│   │   ├── prompts.js       # composeSmartPrompt — uses briefing (R3) + PROPOSE format (R4)
+│   │   ├── records.js       # R1: typed schema, vocabularies, canonical shapes, weak-flagging
+│   │   ├── briefing.js      # R3: buildBriefing, deriveTopicTags
+│   │   ├── persistence.js   # R2: buildSnapshot, applySnapshot, snapshotToMarkdown, snapshotFromMarkdown
+│   │   ├── proposals.js     # R4: parseProposals, annotateImpact, applyProposal
+│   │   ├── engine.js        # createEngine() factory — R1–R4 wired
 │   │   └── nano.js          # optional LanguageModel helpers
 │   ├── ui/
-│   │   ├── layout.js        # shell, outbound panel, footer
-│   │   ├── boards.js        # memory / facts / assumptions / ambient rows
-│   │   ├── transport.js     # copy, paste, ingest, preview
+│   │   ├── layout.js        # shell + outbound panel + footer (R2 import/export buttons + Record view)
+│   │   ├── boards.js        # memory / facts / assumptions / ambient rows (R1 badges + dropdowns)
+│   │   ├── proposals.js     # R4: pending proposals queue panel
+│   │   ├── transport.js     # copy, paste, ingest, preview (R2 export/import, R4 dedupe)
 │   │   └── override.js      # memory override + assumption edit
 │   └── styles/
 │       └── main.css
 └── tests/
-    ├── parser.test.js
-    ├── smoke.test.js
-    ├── spiral.test.js
-    └── records.test.js      # R1+
+    ├── parser.test.js        # 10 tests (R1-aware shapes + meta extraction)
+    ├── records.test.js       # 20 tests (R1 schema, ambient, weak-flagging, engine ingest)
+    ├── persistence.test.js   # 7 tests  (R2 round-trip, links, pure-JSON, render grouping)
+    ├── briefing.test.js      # 18 tests (R3 status gate, tag match, cap, supersession, elapsed time)
+    ├── proposals.test.js     # 19 tests (R4 parse, high-impact, queue, accept/reject, supersede, tag, new)
+    └── smoke.test.js         # 2 tests  (full engine loop)
 ```
 
 ---
 
 ## User flow (B1, as implemented — one button)
 
-The user does **not** choose Task vs Restart. One button: **Copy to chatbot**.
+1. **Type question** in "Your question" → live **decorated prompt** preview updates below.
+2. **Copy to chatbot** → paste into external chatbot. The decorated prompt now starts with a `===BRIEFING===` block (R3) and includes `===PROPOSE===` format instructions (R4).
+3. **Paste reply** into "Chatbot reply" (auto-parses on paste, or click Parse reply).
+4. Boards fill from structured blocks. **Pending proposals** panel appears above the boards when the reply contains a `===PROPOSE===` block (R4). A Turn card is appended to the Conversation spiral.
+5. **Edit boards** — uncheck assumptions, override memory, edit assumption text. Set `status` per row (R1). Accept/reject model proposals (R4).
+6. Preview badge switches to **Regenerate with your edits** when boards are edited.
+7. **Copy to chatbot** again — prompt includes DELETE instructions for revoked items.
+8. Paste new reply → ingest → verify answer changed.
 
-1. Type question in "Your question" → live **decorated prompt** preview updates below.
-2. **Copy to chatbot** → paste into external chatbot (not the raw question). Also freezes the current revocations as the "what travelled in this prompt" snapshot.
-3. Paste reply into "Chatbot reply" (auto-parses on paste, or click Parse reply).
-4. Boards fill from structured blocks at end of reply. A Turn card is appended to the **Conversation spiral**.
-5. **Edit boards** — uncheck assumptions, override memory, edit assumption text.
-6. Preview badge switches to **Regenerate with your edits**; footer shows **Will tell chatbot to DELETE**.
-7. **Copy to chatbot** again → prompt includes `===REVOKED_BY_USER_DO_NOT_USE===` and explicit DELETE lines.
-8. Paste new reply → ingest → verify answer changed. New Turn card lands with a −N revoked pill.
-
-**Critical:** Plain chatbot answers without `===MEMORY===` / `===ASSUMPTIONS===` / `===FACTS===` / `===END===` blocks will **not** populate boards or create a Turn. The decorated prompt instructs the model to emit them.
+**Critical:** Plain chatbot answers without structured blocks will **not** populate boards. The decorated prompt instructs the model to emit them.
 
 ---
 
@@ -124,20 +114,23 @@ The user does **not** choose Task vs Restart. One button: **Copy to chatbot**.
 
 ```
 User question  →  composeSmartPrompt()  →  clipboard  →  external chatbot
-External reply  →  ingestReplyWithFallback()  →  boards / record  →  UI
+External reply  →  ingestReplyWithFallback()  →  boards / record / proposals  →  UI
 ```
 
-Engine never touches clipboard or DOM. UI wires the two boundaries only. This seam is retained as-is — the new record layer (R1–R5) sits **behind** the engine, not in the transport.
+Engine never touches clipboard or DOM. The record layer (R1–R4) sits **behind** the engine, not in the transport.
 
-### Engine API (`createEngine()`)
+---
+
+## Engine API (`createEngine()`)
 
 ```js
 // Ingest
 ingestReply(text)
-ingestReplyWithFallback(text)   // → { memory, assumptions, facts, ambient, hadStructuredBlocks, usedNano }
+ingestReplyWithFallback(text)
+  // → { memory, assumptions, facts, ambient, proposals, hadStructuredBlocks, usedNano }
 
 // Boards
-getBoards()                     // → { memory[], facts[], assumptions[], ambient[] }
+getBoards()           // → { memory[], facts[], assumptions[], ambient[] }
 toggleMemory(id, active)
 toggleFact(id, active)
 toggleAssumption(id, active)
@@ -146,17 +139,36 @@ overrideMemory(id, userText)    // → Promise<committedText>
 ratifyMemory(id, committedText)
 editAssumption(id, statement, reason)
 
-// Records (R1+)
-getRecords()                    // → { stateful[], ambient[] }
+// R1: typed record mutations
+getRecords()                     // → { stateful[], ambient[] } canonical shapes
 updateRecordStatus(id, status)
-updateRecordConfidence(id, conf)
+updateRecordConfidence(id, confidence)
+updateAmbientIntensity(id, intensity)
+boardOf(id)
+
+// R2: persistence
+exportSnapshot()                 // → plain object (envelope)
+exportRecordMarkdown()           // → string (.md file content)
+renderRecordMarkdown()           // → string (rendered view only, no JSON)
+importRecord(text)               // → { memory, facts, assumptions, ambient, exported_at, originalTask, lastActivityAt }
+
+// R3: briefing
+buildBriefing(opts)              // → { text, meta: { keptCount, droppedCount, ambientCount, topicTags, tagFallback, elapsed, supersessionCount } }
+deriveTopicTags(text)            // → string[]
+
+// R4: proposals
+getPendingProposals()            // → proposal[]
+acceptProposal(proposalId)       // → { applied, target_id?, reason? }
+rejectProposal(proposalId)       // → boolean
+acceptAllSafeProposals()         // skips requiresIndividualConfirm; → result[]
+rejectAllProposals()             // → N (count)
 
 // Prompts
-previewSmartPrompt()            // auto: task OR restart — use this for copy
-previewPrompt(kind)             // manual: 'task' | 'restart' | 'prime_assumptions'
-needsRegeneratePrompt()         // true if edits or unchecked items
-buildContextSpec()              // markdown, active items only
-buildRevocationsPreview()       // markdown DELETE section for footer
+previewSmartPrompt()             // auto: task OR restart
+previewPrompt(kind)              // 'task' | 'restart' | 'prime_assumptions'
+needsRegeneratePrompt()
+buildContextSpec()
+buildRevocationsPreview()
 
 // Task
 setOriginalTask(task)
@@ -172,22 +184,134 @@ hasCorrectiveEdits()
 ===MEMORY===
 - <bullet> [ | status: <s> | confidence: <c> | provenance: <p> | tags: t1,t2 ]
 ===ASSUMPTIONS===
-- assumption: <text> | reason: <text> [ | status: <s> | confidence: <c> | provenance: <p> | tags: t1,t2 ]
+- assumption: <text> | reason: <text> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
 ===FACTS===
 - type: retrieved | content: <text> | source: <url> | date: <date> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
 - type: computed | content: <text> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
 ===AMBIENT===
 - text: <ambient note> | intensity: low|medium|high [ | tags: t1,t2 ]
+===PROPOSE===
+- mark <existing_id> <status> | rationale: <reason>
+- supersede <old_id> with <new_id> | rationale: <reason>
+- new <board>: <text> | tags: t1,t2 | rationale: <reason>
+- tag <existing_id> t1,t2 | rationale: <reason>
 ===END===
 ```
 
-Trailing `status`/`confidence`/`provenance`/`tags` fields are **optional** on every item line. The parser fills sane defaults when omitted (status=`active`, confidence=`medium`, provenance varies by board, tags=`[]`).
-
-Parser: `src/engine/parser.js` — tested for well-formed, partial, and malformed input.
+Trailing `status`/`confidence`/`provenance`/`tags` fields are **optional** — parser fills safe defaults when omitted. The `===PROPOSE===` block is **optional**; when present it populates the pending proposals queue (nothing auto-applied). Proposals must include `| rationale: <one-liner>` (model instruction; not enforced by parser).
 
 ---
 
-## Done (~85% of B1)
+## Data model
+
+### Stateful record (memory / facts / assumptions after R1)
+
+```js
+{
+  id, kind, status, provenance, confidence,
+  tags[],           // topic tags for R3 assembler
+  links[],          // { rel: 'depends_on'|'updated_by'|'supersedes', target_id }
+  created_at, updated_at,
+  active,           // UI toggle (revoked when false)
+  // board-specific legacy fields preserved:
+  committedText/originalText/source  // memory
+  content/type/sourceUrl/sourceDate  // facts
+  statement/reason                   // assumptions
+}
+```
+
+### Ambient record
+
+```js
+{
+  id, kind: 'ambient', text,
+  intensity,        // 'low'|'medium'|'high'|'stale'  — NO status field
+  tags[],
+  created_at, last_seen_at, active
+}
+```
+
+### Proposal (pending queue)
+
+```js
+{
+  id, created_at,
+  type,             // 'mark_status'|'supersede'|'tag'|'new'
+  target_id,        // for mark/supersede/tag
+  new_id,           // for supersede
+  board, text, tags,// for new
+  status,           // for mark_status
+  rationale,
+  requiresIndividualConfirm  // true for health/financial/goal-lifecycle items
+}
+```
+
+---
+
+## R1 vocabularies
+
+```js
+STATUSES   = ['open', 'active', 'done', 'dropped', 'revived']
+KINDS      = ['goal', 'fact', 'decision', 'task', 'open_question']
+PROVENANCES= ['user_asserted', 'model_proposed_user_confirmed',
+               'inferred_from_tool', 'stale_superseded']
+CONFIDENCES= ['high', 'medium', 'low']
+INTENSITIES= ['low', 'medium', 'high', 'stale']
+
+isWeak(record)           // true: confidence=low AND provenance=stale_superseded
+isVisiblyUntrusted(item) // true: confidence=low OR provenance=stale_superseded
+```
+
+---
+
+## R2 file format
+
+One `.md` file per session. Human-readable Markdown body up top (grouped by lifecycle: Active goals & memory / Active facts / Open questions / Ambient context / Done+dropped / Stale+superseded), followed by:
+
+```
+---
+
+<!-- CONTEXT_LENS_RECORD
+{ ... full JSON snapshot ... }
+-->
+```
+
+Importers prefer the JSON envelope; pure-JSON files (without the Markdown wrapper) are also accepted.
+
+---
+
+## R3 briefing assembler — ordered filter
+
+`buildBriefing(state, opts)` applies in order:
+
+1. **Status gate** — keep only `active | open | revived`; drop `done | dropped | stale_superseded`; also drop items the user toggled off (`active=false` in the UI).
+2. **Tag match** — explicit `#tag` mentions in the question first; otherwise tokenize and intersect against known record tags (cheap set lookup, no inference). Falls back to the whole active pool when nothing matches.
+3. **Recency** — `updated_at` descending; newer wins ties.
+4. **Ambient always-in** — included regardless of topic tags; protected from the token-cap prune; items with `intensity=stale` are dropped.
+5. **Hard token cap** (`tokenBudget`, default 1500 tokens ≈ 6000 chars) — iterate BEST-to-WORST (high conf → newest), drop the rest. Ambient is pre-subtracted from the budget but never pruned.
+
+**Supersession:** stale_superseded items are emitted under `## Supersession — items that are NO LONGER TRUE` (not in the active pool). Live records with a `links[].rel='supersedes'` reference also trigger a `NO LONGER TRUE` note for the older record.
+
+**Time awareness:** `lastActivityAt` is tracked on every engine state mutation and preserved across export/import. When the gap between `lastActivityAt` and `now` exceeds 6 hours, the briefing prepends: `Time elapsed since last activity: N days.`
+
+The briefing block is prepended to `composeTask` / `composeRestart` in place of the legacy Context Spec block.
+
+---
+
+## R4 propose-and-confirm — trust rules
+
+- **Nothing auto-applies.** The engine parses `===PROPOSE===` on ingest and pushes proposals into `state.pendingProposals`; the record is untouched until the user explicitly accepts.
+- **Material-only rule** (in the decorated prompt): the model is instructed to propose only material changes — a goal completing, a plan being abandoned/superseded, a new commitment. Trivial rephrasings must NOT be proposed.
+- **High-impact flagging** (`annotateImpact`): `requiresIndividualConfirm=true` when the target record has tags ∈ `{health, medical, financial, money, finance, legal}` OR is `kind=goal|decision` being marked `done|dropped`. Flagged proposals are shown with a red **"high impact — must confirm individually"** pill and are **skipped by "Accept all (safe)"**.
+- **On confirm:** `applyProposal` sets `provenance='model_proposed_user_confirmed'`, bumps `updated_at`, merges `tags[]`, and writes bi-directional `supersedes`/`updated_by` links for supersession proposals.
+- **On reject:** discarded; record untouched.
+- **Dedupe:** the transport tracks `lastIngestedText`; re-ingesting the same reply is a no-op, preventing double-proposals from paste+click.
+
+---
+
+## Done
+
+### B1 (original)
 
 - [x] Vite + plain JS scaffold
 - [x] Engine: parser, contextSpec, revocations, smart prompt
@@ -201,127 +325,70 @@ Parser: `src/engine/parser.js` — tested for well-formed, partial, and malforme
 - [x] Vitest coverage for core loop
 - [x] Conversation spiral — per-turn dialog log
 
-## Remaining B1 polish (~15%) — keep, but secondary to the record work
+### B1 polish (remaining — secondary to record work)
 
-- [ ] Prove end-to-end with real chatbot sessions
-- [x] Import `.md` — load a previously exported Context Spec (export exists, import does not) → **folded into R2** ✓
+- [ ] Prove end-to-end with real chatbot sessions (success criterion below)
+- [x] Import `.md` — load a previously exported Context Spec → **done in R2** (generalized to typed record)
 - [ ] Better override UX — in-app modals instead of `window.prompt`/`confirm`
 - [ ] Assumption edit revocations — surface old vs new in DELETE block
 - [ ] Rewind from spiral — "Restore to here" on a turn card
 - [ ] Export spiral — include turn log in `.md` export
 - [ ] README for non-Cursor users
 
----
+### R1 — Typed record schema ✓
 
-## New tasks — the longitudinal record (the brain)
+- [x] Define the stateful record schema (`kind`, `status`, `provenance`, `confidence`, `tags[]`, `links[]`, `created_at`, `updated_at`)
+- [x] Define the ambient-context record schema (`kind='ambient'`, `intensity`, `tags[]`, `created_at`, `last_seen_at` — **no `status` field**)
+- [x] Migrate `memory` / `facts` / `assumptions` board items to stateful records; route emotional/contextual notes to ambient records
+- [x] Board rows render `status` (or `intensity` for ambient) + `confidence` + `provenance` + tags; user can set status/intensity and edit inline
+- [x] Introspection prompt updated: instructs the model to emit `status` / `provenance` / `confidence` / `tags` per stateful item, and to emit soft context as `===AMBIENT===` records, not collapse them into facts
+- [x] Tests: parser handles both record types; low-confidence/weak-provenance items are visibly flagged; ambient items carry no `status` field
 
-These are the rev. 2 direction. Build in order; each rung ships and is usable before the next. **No DB, no vector store, no backend until R5 (optional).**
+### R2 — Local persistence + reload ✓
 
-### R1 — Typed record (replace flat bullets)
+- [x] Serialize the full record set to one local Markdown/JSON file (export button: `Export record`)
+- [x] Import: load a previously saved record back into the engine (`Import record` button, file picker)
+- [x] On load, the record is the working state; the next prompt is composed from it on any model
+- [x] No server, no IndexedDB — file in / file out (`localStorage` non-goal; user owns the file)
+- [x] Rendered view (not raw JSON): **Record view (longitudinal)** panel — active goals up top, timeline, superseded/done collapsed, ambient shown separately. Rendered as live HTML in the footer.
+- [x] Tests: round-trip export → import preserves all record fields including status/timestamps/provenance/tags/links
 
-Promote each board item from a flat string to a typed record. **Two record types, not one** (see ambient note below).
+### R3 — Briefing assembler ✓
 
-- [x] Define the **stateful record** schema (for discrete things with a lifecycle — goals, facts, decisions, tasks):
+- [x] `buildBriefing(state, opts)` with the five-step ordered filter (status gate → tag match → recency → ambient always-in → token cap)
+- [x] Supersession: `stale_superseded` records dropped from active pool + `NO LONGER TRUE` notes
+- [x] Time awareness: elapsed-time line when gap > 6 hours; `lastActivityAt` tracked + preserved across export/import
+- [x] Compose the briefing as a prepended block (replaces the ad-hoc Context Spec prepend in `composeTask` / `composeRestart`)
+- [x] Tests: superseded fact never appears as current; stale done goal excluded; off-topic record excluded by tag gate; ambient items always present; elapsed-time line present on gap; assembled set respects the token cap
 
-  ```js
-  {
-    id, kind, text,
-    status,
-    provenance,
-    confidence,
-    tags,
-    links,
-    created_at, updated_at,
-  }
-  ```
+### R4 — Propose-and-confirm ✓
 
-  - `kind`: `'goal' | 'fact' | 'decision' | 'task' | 'open_question'`
-  - `status`: `'open' | 'active' | 'done' | 'dropped' | 'revived'`
-  - **provenance** (tier, not free text — the "you have it" fix): one of
-    `'user_asserted' | 'model_proposed_user_confirmed' | 'inferred_from_tool' | 'stale_superseded'`
-  - `confidence`: `'high' | 'medium' | 'low'` (low + weak provenance = cannot be treated as operative fact)
-  - `tags[]`: topic tags used by the R3 assembler to decide relevance (written at create/commit time, see R4)
-  - `links[]`: lightweight typed edges to other record ids — `{ rel, target_id }`, `rel`: `'depends_on' | 'updated_by' | 'supersedes'`. A small graph element; do not build a full KG yet.
+- [x] After ingest, parse model-proposed transitions from `===PROPOSE===` block (4 shapes: mark / supersede / new / tag)
+- [x] Material-only rule in the decorated prompt: model instructed not to propose trivial rephrasings
+- [x] Proposals rendered as confirm/reject queue (pending proposals panel above the reply/boards area), with per-row rationale, Accept / Reject, "Accept all (safe — N)", "Reject all"
+- [x] High-impact flagging: health/medical/financial/legal tags OR kind=goal/decision marked done/dropped → `requiresIndividualConfirm=true`, shown with red pill, skipped by "Accept all (safe)"
+- [x] On confirm: `applyProposal` sets `provenance='model_proposed_user_confirmed'`, bumps `updated_at`, merges `tags[]`, writes `supersedes`/`updated_by` links; on reject: discarded, nothing applied
+- [x] Confirmed proposals write/refresh `tags[]` so the R3 assembler can find the item next time
+- [ ] Optional: confirmed `done` record with follow-up date → dated reminder (deferred — explicitly optional in spec)
+- [x] Tests: no proposal mutates the record without explicit confirm; confirm updates timestamps/provenance/tags/supersession links; high-impact items cannot be swept by "accept all"
+- [x] Ingest dedupe: `lastIngestedText` tracking prevents double-proposals from paste+click
 
-- [x] Define the **ambient-context** record schema (for soft, non-lifecycle context — mood, tone, standing constraints like "burnt out by micromanaging boss"). This does **not** get a status; it decays:
+### R5 — Temporal engine (optional, deferred)
 
-  ```js
-  { id, kind: 'ambient', text, intensity, tags, created_at, last_seen_at }
-  ```
-
-  - `intensity`: `'low' | 'medium' | 'high'`; decays toward `stale` as `last_seen_at` ages unless reaffirmed.
-
-  Rationale: a mood has no `done`/`dropped`. Forcing soft context into the status lifecycle (the rev.1 `kind: emotion` mistake) is wrong. Ambient items are **always candidates** for the briefing (see R3).
-
-- [x] Migrate `memory` / `facts` / `assumptions` board items to stateful records; route emotional/contextual notes to ambient records.
-- [x] Board rows render `status` (or `intensity` for ambient) + `confidence` + `provenance`; user can set status/intensity and edit inline.
-- [x] Introspection prompt update: instruct the model to emit `status` / `provenance` / `confidence` / `tags` per stateful item, and to emit soft context as ambient records, not collapse them into facts.
-- [x] Tests: parser handles both record types; low-confidence/weak-provenance items are visibly flagged; ambient items carry no `status` field.
-
-**Ships:** an honest, manual status ledger with a separate channel for soft context. _Not yet:_ persistence, auto-assembly.
-
-### R2 — Local persistence + reload (the "database", trivial)
-
-- [x] Serialize the full record set to one local Markdown/JSON file (extend existing Context Spec export).
-- [x] Import: load a previously saved record back into the engine (the existing "Import .md" task, generalized to the typed record).
-- [x] On load, the record is the working state; the next prompt is composed from it on any model.
-- [x] No server, no IndexedDB required — file in / file out. (`localStorage` still a non-goal; user owns the file.)
-- [x] Rendered view (not raw JSON): a simple HTML/Obsidian-like render of the record — active goals up top, a timeline, superseded/done items collapsed, ambient context shown separately. Read-only is fine for R2.
-- [x] Tests: round-trip export → import preserves all record fields including status/timestamps/provenance/tags/links.
-
-**Ships:** the record survives across sessions and reloads into the next conversation, on any model.
-
-### R3 — Briefing assembler ("super prompt")
-
-The core differentiator and the make-or-break task (all external reviewers flagged this as the hard part). Each turn, compose the prompt from the **relevant, currently-valid slice** of the record. **No embeddings, no semantic search, no Graphiti at this rung** — they are not needed below a few hundred items, and injecting everything is the exact failure ("lost in the middle") the assembler exists to prevent.
-
-- [x] `buildBriefing(currentTopicTags)` applies this ordered filter:
-  1. **Status gate (deterministic):** include only stateful records with `status` in `{active, open, revived}`. Drop `done` / `dropped` / `stale_superseded` entirely (unless the user explicitly queries history). Items the user toggled off in the UI (`active=false`) are also revoked.
-  2. **Tag match:** of those, include records whose `tags[]` intersect the current thread's topic tags. Tags are derived from explicit `#tag` mentions first, then by token-set intersection with known record tags — no inference. Falls back to the whole active pool when nothing matches (better an over-broad briefing than an empty one).
-  3. **Recency/decay:** prefer recently `updated_at`; newer wins ties.
-  4. **Always-include ambient set:** include current ambient-context records (mood/constraints) regardless of status — a coach always needs them. Drop only ambient items whose intensity has decayed to `stale`. Ambient is protected from the token-cap prune.
-  5. **Hard token cap:** if the assembled set exceeds the budget, drop lowest confidence first, then oldest, until it fits.
-- [x] **Supersession:** when a record supersedes/updated_by another, emit the superseded one as explicitly _no-longer-true_ (or omit it), so stale facts stop contaminating answers.
-- [x] **Time awareness:** include `created_at` / `updated_at`; on reopen after a gap, state elapsed time so the model does not assume nothing happened.
-- [x] Compose the briefing as a prepended block; this replaces the ad-hoc Context Spec prepend.
-- [x] Tests: a superseded fact never appears as current; a stale `done` goal is excluded; an off-topic record is excluded by the tag gate; ambient items always present; elapsed-time line present on gap; assembled set respects the token cap.
-
-**Ships:** threads stop decaying as they lengthen; a thread reopened after a long gap arrives pre-briefed.
-
-### R4 — Propose-and-confirm state updates
-
-The trust rung. The model proposes record changes; the user commits. The existing boards/override handshake become this editor.
-
-- [x] After ingest, parse model-proposed transitions (e.g. `===PROPOSE=== mark <id> done | supersede <id> with <id> | new <record> | tag <id> <tags>`).
-- [x] **Material-only rule** (prevents confirm-fatigue): instruct the model to propose only material state changes — a goal completing, a plan being abandoned/superseded, a new commitment. **Do not propose** trivial rephrasings or restating things already true. A 20-minute session should yield a few proposals, not fifteen.
-- [x] Render proposals as a confirm/reject queue (reuse override-handshake UX), shown as a short batch with a one-line rationale each. Support **reject individually** and **accept all** for a quick clean batch; high-impact changes (e.g. marking a health/financial item done) are flagged and must be confirmed individually.
-- [x] On confirm, apply to the record with new `updated_at` and set `provenance: 'model_proposed_user_confirmed'`; on reject, discard. Never auto-apply.
-- [x] Confirmed proposals write/refresh `tags[]` so the R3 assembler can find the item next time.
-- [ ] Optional: a confirmed `done` record with a follow-up date becomes a dated reminder surfaced when due (thin layer; deterministic). _(deferred — explicitly optional in spec)_
-- [x] Tests: no proposal mutates the record without explicit confirm; trivial proposals are suppressed by the prompt; confirm updates timestamps, provenance, tags, and supersession links; high-impact items cannot be swept by "accept all".
-
-**Ships:** Outlook-grade trust — it behaves like a reliable secretary, not a guessing chatbot.
-
-### R5 — Temporal engine underneath (optional, deferred)
-
-Only after R1–R4 prove the workflow. Revisits the "no backend" constraint deliberately.
-
-- [ ] Evaluate replacing hand-rolled supersession with a bitemporal store (Graphiti / Zep): `valid_from` / `valid_until` / `learned_on` per fact, fact invalidation (not deletion), as-of-date queries.
-- [ ] Decide local-embeddable vs service; if it requires a backend, that is a conscious scope change, gated on R1–R4 value.
-- [ ] Tests: historical query ("what did I believe on `<date>`") returns the as-of slice.
-
-**Ships:** true medical-record-style longitudinal accuracy.
+- [ ] Evaluate bitemporal store (Graphiti / Zep) — gated on R1–R4 proving value
 
 ---
 
-## Explicit non-goals (updated)
+## Remaining work (next session)
 
-- **Autonomous watch-and-act.** It does not watch screenshots/messages and silently advance the plan. The model proposes; the user commits (R4). Off the ladder by design — silent action destroys the trust that makes the record worth having.
-- **Rebuilding the shell.** Model abstraction, multi-model chat, project folders, BYO-key routing are commodities (TypingMind, LibreChat, Msty, Poe, OpenRouter). Do not reimplement them.
-- Browser extension (B2), live DOM, streaming.
-- Paid API calls, API keys, backend, DB, vector store (until R5, optional and gated).
-- `localStorage` / multi-session magic — persistence is an explicit user-owned file (R2).
-- TypeScript / React migration (unless deliberately chosen later).
+If starting from this checkpoint, the codebase is fully working and all R1–R4 tests pass. Next useful work, in priority order:
+
+1. **Prove the real use case** — run a genuine months-long thread (career, health) through R1–R3, compare first reply of each session to an unbriefed chat. If the briefed reply is not visibly sharper, fix the assembler or what's being captured.
+2. **Better override UX** — replace `window.prompt` / `window.confirm` in `override.js` with in-app modals (see B1 polish list).
+3. **Export spiral** — extend `exportRecordMarkdown` to include the per-turn conversation log.
+4. **Rewind from spiral** — "Restore to here" button on a turn card.
+5. **README** for non-Cursor users.
+6. **R5** (bitemporal store) — only after R1–R4 prove the workflow in real use.
 
 ---
 
@@ -331,7 +398,7 @@ Only after R1–R4 prove the workflow. Revisits the "no backend" constraint deli
 
 **Record (new):** open a thread, build a typed record (R1), close the app, reopen days later, load the record (R2), ask a follow-up — and the model's first reply is grounded in current goals with stale items superseded and elapsed time acknowledged (R3), with no state change applied without confirmation (R4).
 
-**The real bar (do not lose sight of this):** every session, the model's first reply must be _visibly sharper_ because of the record than the same question asked in a plain chat. If a briefed reply is no better than an unbriefed one, the ledger is a notes app with timestamps — fix the assembler (R3) or what's being captured (R1), not the plumbing. The honest test is one real months-long thread of your own (career or health) run through R1–R3, compared against plain chat.
+**The real bar:** every session, the model's first reply must be _visibly sharper_ because of the record than the same question asked in a plain chat.
 
 ---
 
@@ -339,5 +406,7 @@ Only after R1–R4 prove the workflow. Revisits the "no backend" constraint deli
 
 1. If boards stay empty after paste, the user sent the **raw question** instead of the **decorated prompt**.
 2. After edits, verify footer **Will tell chatbot to DELETE** is populated before copying.
-3. The transport seam (`ingestReply` / `getComposedPrompt`) is stable — build R1–R5 **behind** the engine, not in transport.
-4. Do not edit this file unless updating handoff status — implementation lives in `src/`.
+3. The transport seam (`ingestReply` / `getComposedPrompt`) is stable — R1–R5 sit **behind** the engine, not in the transport.
+4. The briefing uses `id=<uuid>` tokens in the emitted text so the model can reference specific records in `===PROPOSE===` proposals. The tag match falls back to the whole active pool if no tags match — never silent empty briefing.
+5. `requiresIndividualConfirm=true` items must be accepted one at a time; "Accept all (safe)" deliberately skips them.
+6. Do not edit this file unless updating handoff status — implementation lives in `src/`.
