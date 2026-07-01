@@ -329,8 +329,8 @@ The briefing block is prepended to `composeTask` / `composeRestart` in place of 
 
 - [ ] Prove end-to-end with real chatbot sessions (success criterion below)
 - [x] Import `.md` — load a previously exported Context Spec → **done in R2** (generalized to typed record)
-- [ ] Better override UX — in-app modals instead of `window.prompt`/`confirm`
-- [ ] Assumption edit revocations — surface old vs new in DELETE block
+- [x] Better override UX — in-app modals instead of `window.prompt`/`confirm`
+- [x] Assumption edit revocations — surface old vs new in DELETE block
 - [ ] Rewind from spiral — "Restore to here" on a turn card
 - [ ] Export spiral — include turn log in `.md` export
 - [ ] README for non-Cursor users

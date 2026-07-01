@@ -1,4 +1,4 @@
-import { showMemoryOverride, showAssumptionEdit } from './override.js';
+import { showMemoryOverride, showAssumptionEdit, showMemoryOverridePrompt } from './override.js';
 import { STATUSES, INTENSITIES, isVisiblyUntrusted } from '../engine/records.js';
 
 function el(tag, className, text) {
@@ -173,7 +173,7 @@ export function initBoards(container, engine, onFullUpdate, onContextUpdate) {
       const editBtn = el('button', 'btn btn-small', 'Override');
       editBtn.type = 'button';
       editBtn.addEventListener('click', async () => {
-        const userText = window.prompt('Override memory bullet:', item.committedText);
+        const userText = await showMemoryOverridePrompt(item.committedText);
         if (userText === null) return;
 
         const committedText = await showMemoryOverride(engine, item.id, userText);

@@ -55,6 +55,8 @@ function appendParsed(state, parsed) {
       id: newId(),
       statement: assumption.statement,
       reason: assumption.reason,
+      originalStatement: assumption.statement,
+      originalReason: assumption.reason,
       active: true,
     };
     applyRecordDefaults(item, 'assumptions', meta);
@@ -335,6 +337,10 @@ export function createEngine() {
     editAssumption(id, statement, reason) {
       const item = state.assumptions.find((a) => a.id === id);
       if (!item) return;
+
+      // Preserve the original text so the DELETE block can emit old vs new.
+      if (item.originalStatement === undefined) item.originalStatement = item.statement;
+      if (item.originalReason === undefined) item.originalReason = item.reason;
 
       item.statement = statement;
       item.reason = reason;
