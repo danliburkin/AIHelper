@@ -99,6 +99,15 @@ function appendRecordMeta(row, item, statusOnChange) {
   row.append(meta);
 }
 
+/**
+ * Mount and manage the four context boards (Memory, Facts, Assumptions, Ambient).
+ *
+ * @param {HTMLElement} container - element that receives the board sections
+ * @param {ReturnType<import('../engine/engine.js').createEngine>} engine
+ * @param {() => void} onFullUpdate - called when a change requires a full re-render
+ * @param {() => void} onContextUpdate - called for lightweight context-spec refreshes
+ * @returns {{ render: () => void }}
+ */
 export function initBoards(container, engine, onFullUpdate, onContextUpdate) {
   const memoryBoard = createBoardSection(
     'Memory',

@@ -1,3 +1,10 @@
+/**
+ * Build the full app shell and return references to every interactive element.
+ * This is the only place DOM structure is defined; no logic lives here.
+ *
+ * @param {HTMLElement} root - the #app mount point
+ * @returns {Record<string, HTMLElement>} refs used by initTransport, initBoards, initProposals
+ */
 export function buildLayout(root) {
   root.replaceChildren();
 

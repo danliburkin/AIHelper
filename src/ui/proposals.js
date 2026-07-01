@@ -27,6 +27,15 @@ function shortId(id) {
   return String(id).length > 12 ? String(id).slice(0, 8) + '…' : String(id);
 }
 
+/**
+ * Mount the pending proposals queue panel.
+ * The panel is hidden when there are no proposals and shown automatically on ingest.
+ *
+ * @param {HTMLElement} container - element that receives the proposals panel
+ * @param {ReturnType<import('../engine/engine.js').createEngine>} engine
+ * @param {() => void} onUpdate - called after accept/reject so boards and context spec refresh
+ * @returns {{ render: () => void }}
+ */
 export function initProposals(container, engine, onUpdate) {
   const panel = el('section', 'proposals-panel');
   panel.hidden = true;

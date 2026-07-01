@@ -1,3 +1,12 @@
+/**
+ * Wire clipboard transport: copy decorated prompt, paste/ingest chatbot reply,
+ * live prompt preview, export/import record, and status messages.
+ *
+ * @param {Record<string, HTMLElement>} refs - DOM refs returned by buildLayout()
+ * @param {ReturnType<import('../engine/engine.js').createEngine>} engine
+ * @param {() => void} onUpdate - called after any ingest or import so boards refresh
+ * @returns {{ updateContextSpec: () => void, setStatus: (msg: string, kind?: string) => void, updatePromptPreview: () => void, onBoardsEdited: () => void }}
+ */
 export function initTransport(refs, engine, onUpdate) {
   const {
     replyArea,
