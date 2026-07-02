@@ -1,4 +1,5 @@
 import { showMemoryOverride, showAssumptionEdit, showMemoryOverridePrompt } from './override.js';
+import { showFieldsModal } from './modal.js';
 import { STATUSES, INTENSITIES, isVisiblyUntrusted } from '../engine/records.js';
 
 function el(tag, className, text) {
@@ -8,12 +9,23 @@ function el(tag, className, text) {
   return node;
 }
 
-function createBoardSection(title, emptyMessage, modifier) {
+function createBoardSection(title, emptyMessage, modifier, onAdd) {
   const section = el('section', `board-section board-${modifier}`);
+  const headingRow = el('div', 'board-heading-row');
   const heading = el('h3', 'board-title', title);
+  headingRow.append(heading);
+
+  if (onAdd) {
+    const addBtn = el('button', 'btn btn-small btn-board-add', '+ Add');
+    addBtn.type = 'button';
+    addBtn.setAttribute('aria-label', `Add to ${title}`);
+    addBtn.addEventListener('click', onAdd);
+    headingRow.append(addBtn);
+  }
+
   const list = el('div', 'board-list');
   const empty = el('p', 'board-empty', emptyMessage);
-  section.append(heading, list, empty);
+  section.append(headingRow, list, empty);
   return { section, list, empty };
 }
 
@@ -108,26 +120,87 @@ function appendRecordMeta(row, item, statusOnChange) {
  * @param {() => void} onContextUpdate - called for lightweight context-spec refreshes
  * @returns {{ render: () => void }}
  */
+function parseTagsInput(raw) {
+  return String(raw || '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
 export function initBoards(container, engine, onFullUpdate, onContextUpdate) {
   const memoryBoard = createBoardSection(
     'Memory',
     'Empty — copy a prompt to your chatbot first, then paste its structured reply.',
     'memory',
+    async () => {
+      const result = await showFieldsModal({
+        title: 'Add memory',
+        fields: [
+          { id: 'text', label: 'Memory text', multiline: true },
+          { id: 'tags', label: 'Tags (comma separated, optional)' },
+        ],
+        confirmLabel: 'Add',
+      });
+      if (!result || !result.text.trim()) return;
+      engine.addMemory(result.text, { tags: parseTagsInput(result.tags) });
+      onFullUpdate();
+    },
   );
   const factsBoard = createBoardSection(
     'Facts',
     'Retrieved and computed facts appear after parsing a reply.',
     'facts',
+    async () => {
+      const result = await showFieldsModal({
+        title: 'Add fact',
+        fields: [
+          { id: 'content', label: 'Fact', multiline: true },
+          { id: 'tags', label: 'Tags (comma separated, optional)' },
+        ],
+        confirmLabel: 'Add',
+      });
+      if (!result || !result.content.trim()) return;
+      engine.addFact(result.content, { tags: parseTagsInput(result.tags) });
+      onFullUpdate();
+    },
   );
   const assumptionsBoard = createBoardSection(
     'Assumptions',
     'Inferred assumptions appear after parsing a reply.',
     'assumptions',
+    async () => {
+      const result = await showFieldsModal({
+        title: 'Add assumption',
+        fields: [
+          { id: 'statement', label: 'Assumption statement' },
+          { id: 'reason', label: 'Likely because… (optional)' },
+          { id: 'tags', label: 'Tags (comma separated, optional)' },
+        ],
+        confirmLabel: 'Add',
+      });
+      if (!result || !result.statement.trim()) return;
+      engine.addAssumption(result.statement, result.reason, { tags: parseTagsInput(result.tags) });
+      onFullUpdate();
+    },
   );
   const ambientBoard = createBoardSection(
     'Ambient context',
     'Soft context (mood, standing constraints) appears here when the model emits an ===AMBIENT=== block.',
     'ambient',
+    async () => {
+      const result = await showFieldsModal({
+        title: 'Add ambient context',
+        fields: [
+          { id: 'text', label: 'Mood / standing constraint', multiline: true },
+          { id: 'intensity', label: 'Intensity (low, medium, or high)', value: 'medium' },
+          { id: 'tags', label: 'Tags (comma separated, optional)' },
+        ],
+        confirmLabel: 'Add',
+      });
+      if (!result || !result.text.trim()) return;
+      engine.addAmbientItem(result.text, result.intensity, { tags: parseTagsInput(result.tags) });
+      onFullUpdate();
+    },
   );
 
   container.append(

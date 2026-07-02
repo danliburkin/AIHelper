@@ -1,7 +1,7 @@
 # Context Lens — Build Spec & Session Handoff
 
-**Branch:** `cursor/longitudinal-record-r1-r4-6a94`
-**Status:** R1 + R2 + R3 + R4 all complete and passing (76 vitest tests, clean Vite build). See _New tasks_ progress below.
+**Branch:** `cursor/notepad-conversations-manual-add-6a94` (built on top of `cursor/longitudinal-record-r1-r4-6a94`, which has R1–R4 merged)
+**Status:** R1 + R2 + R3 + R4 all complete. Post-R4 UX upgrade also complete: multi-conversation localStorage persistence, manual add-item buttons, and a notepad-style turn log. 140 vitest tests passing, clean Vite build. See _New tasks_ and _Post-R4 UX upgrade_ sections below.
 
 ---
 
@@ -48,7 +48,7 @@ npm run build        # → dist/ (static, no Node at runtime)
 | Bundler  | Vite 6                                                                               |
 | UI       | Native DOM (`createElement`, `textContent`) — no React                               |
 | CSS      | Single `main.css` — dark editorial, corner gradients, responsive                     |
-| Tests    | Vitest — `tests/parser.test.js`, `records.test.js`, `persistence.test.js`, `briefing.test.js`, `proposals.test.js`, `smoke.test.js` |
+| Tests    | Vitest — 10 test files, 140 tests (parser, records, persistence, briefing, proposals, overrides, spiral, manual-add, storage, smoke) |
 | Fonts    | Libre Baskerville, Inter, IBM Plex Mono (Google Fonts)                               |
 
 Optional: Gemini Nano via `window.LanguageModel` for parse/compose fallback only (`src/engine/nano.js`).
@@ -60,12 +60,14 @@ Optional: Gemini Nano via `window.LanguageModel` for parse/compose fallback only
 ```
 .
 ├── CURSOR_BUILD.md          ← this file (source of truth for progress)
+├── README.md                # user-facing docs
+├── LICENSE                  # MIT
 ├── index.html
 ├── package.json
 ├── vite.config.js
 ├── vitest.config.js
 ├── src/
-│   ├── main.js              # boot, wire engine ↔ UI
+│   ├── main.js              # boot, wire engine ↔ UI ↔ conversations
 │   ├── engine/
 │   │   ├── parser.js        # parseReplyBlocks + extractTrailingMeta (R1)
 │   │   ├── contextSpec.js   # buildContextSpec (now includes ambient + badges)
@@ -74,14 +76,18 @@ Optional: Gemini Nano via `window.LanguageModel` for parse/compose fallback only
 │   │   ├── briefing.js      # R3: buildBriefing, deriveTopicTags
 │   │   ├── persistence.js   # R2: buildSnapshot, applySnapshot, snapshotToMarkdown, snapshotFromMarkdown
 │   │   ├── proposals.js     # R4: parseProposals, annotateImpact, applyProposal
-│   │   ├── engine.js        # createEngine() factory — R1–R4 wired
+│   │   ├── storage.js       # multi-conversation localStorage: index + per-conversation snapshot CRUD
+│   │   ├── engine.js        # createEngine() factory — R1–R4 + manual add + reset/restoreSnapshot wired
 │   │   └── nano.js          # optional LanguageModel helpers
 │   ├── ui/
-│   │   ├── layout.js        # shell + outbound panel + footer (R2 import/export buttons + Record view)
-│   │   ├── boards.js        # memory / facts / assumptions / ambient rows (R1 badges + dropdowns)
+│   │   ├── layout.js        # shell + conversation bar + outbound panel + footer
+│   │   ├── boards.js        # memory / facts / assumptions / ambient rows + "+ Add" modals
 │   │   ├── proposals.js     # R4: pending proposals queue panel
+│   │   ├── spiral.js        # conversation turn log (left column) — reply excerpt + Restore to here
+│   │   ├── conversations.js # conversation switcher: list/switch/new/rename/delete + autosave
+│   │   ├── modal.js         # in-app prompt/confirm/fields modals (replaces window.prompt/confirm)
 │   │   ├── transport.js     # copy, paste, ingest, preview (R2 export/import, R4 dedupe)
-│   │   └── override.js      # memory override + assumption edit
+│   │   └── override.js      # memory override + assumption edit (uses modal.js)
 │   └── styles/
 │       └── main.css
 └── tests/
@@ -90,6 +96,10 @@ Optional: Gemini Nano via `window.LanguageModel` for parse/compose fallback only
     ├── persistence.test.js   # 7 tests  (R2 round-trip, links, pure-JSON, render grouping)
     ├── briefing.test.js      # 18 tests (R3 status gate, tag match, cap, supersession, elapsed time)
     ├── proposals.test.js     # 19 tests (R4 parse, high-impact, queue, accept/reject, supersede, tag, new)
+    ├── overrides.test.js     # 12 tests (assumption edit revocations, DELETE block old/new)
+    ├── spiral.test.js        # 11 tests (turn recording, restoreToTurn, persistence round-trip)
+    ├── manual-add.test.js    # 22 tests (addMemory/Assumption/Fact/AmbientItem, reset, restoreSnapshot)
+    ├── storage.test.js       # 19 tests (localStorage CRUD, title auto-derive vs custom-title lock)
     └── smoke.test.js         # 2 tests  (full engine loop)
 ```
 
@@ -146,6 +156,17 @@ updateRecordConfidence(id, confidence)
 updateAmbientIntensity(id, intensity)
 boardOf(id)
 
+// Manual add (post-R4 UX upgrade) — user-asserted / high-confidence / active by default
+addMemory(text, opts?)           // → created item, or null if text is empty
+addAssumption(statement, reason?, opts?)
+addFact(content, opts?)          // opts.type: 'computed' | 'retrieved'
+addAmbientItem(text, intensity?, opts?)   // opts: { tags?: string[] }
+
+// Conversation lifecycle (post-R4 UX upgrade)
+reset()                          // wipe to a blank conversation, same engine object
+restoreSnapshot(snapshot)        // apply an exportSnapshot()-shaped object directly (no markdown parsing)
+getOriginalTask()                // → string, for syncing the question input on conversation switch
+
 // R2: persistence
 exportSnapshot()                 // → plain object (envelope)
 exportRecordMarkdown()           // → string (.md file content)
@@ -174,6 +195,11 @@ buildRevocationsPreview()
 setOriginalTask(task)
 setTopic(topic)
 hasCorrectiveEdits()
+
+// Conversation spiral (turn log)
+addTurn(question, added, revokedCount?, replyText?)   // called by transport after a successful ingest
+getTurns()                       // → turn[] shallow copies, each with a nested full-record snapshot
+restoreToTurn(turnIndex)         // rolls board state back to that turn's snapshot; trims later turns
 ```
 
 ---
@@ -379,16 +405,36 @@ The briefing block is prepended to `composeTask` / `composeRestart` in place of 
 
 ---
 
+## Post-R4 UX upgrade — multi-conversation notepad ✓
+
+Driven by real usage feedback after R1–R4 landed: the app needed (1) a way to manually add context without waiting on the model, (2) an actual place to keep pasting replies turn after turn, and (3) real persistence — "store the assumption statuses like git" — instead of a manual export/import round-trip every session.
+
+- [x] **Manual add buttons** — every board (Memory, Facts, Assumptions, Ambient) has a `+ Add` button in its header that opens a modal (`showFieldsModal`) and calls `engine.addMemory` / `addAssumption` / `addFact` / `addAmbientItem`. Manually added items are `provenance: 'user_asserted'`, `confidence: 'high'`, and show up in the very next briefing.
+- [x] **Notepad-style turn log** — the conversation spiral moved from the footer boards panel to the TOP of the left column, directly above the "Paste the next reply" textarea, so replying reads top-to-bottom like a real conversation transcript. Each turn card now also stores and displays the raw pasted reply text behind a "Show pasted reply" `<details>` toggle.
+- [x] **Multi-conversation localStorage persistence** — `src/engine/storage.js` is a small localStorage-backed index (`context-lens:index`) plus one full snapshot key per conversation (`context-lens:conv:<uuid>`). A conversation switcher bar in the header (dropdown + New/Rename/Delete) lets the user keep several independent conversations, each with its own full record (boards + turns). Auto-save is debounced (500ms) and fires after every meaningful state change; a `beforeunload` handler flushes any pending save immediately.
+  - The conversation title auto-derives from the current question (`originalTask`, truncated to 60 chars) on every save UNLESS the user explicitly renamed it (`customTitle` flag in the index entry locks the title against auto-derivation).
+  - `engine.reset()` and `engine.restoreSnapshot(snapshot)` swap the SAME engine object's internal state in place, so all other UI modules (boards, transport, proposals, spiral) keep working across a conversation switch without being re-wired.
+  - The manual Export/Import `.md` flow is untouched and still works as a cross-device/cross-browser backup on top of the automatic localStorage persistence.
+- [x] Fixed two bugs found during manual verification:
+  - Turn cards were only appearing on the render AFTER the one that actually created them, because `engine.addTurn(...)` was called after `onUpdate()` in `transport.js`. Reordered so the turn is recorded before the UI refresh that displays it.
+  - The "paste the next reply" textarea and the ingest dedupe tracker were not cleared when switching/creating a conversation or rewinding to a turn, so leftover text from a different conversation could linger. Added `transport.resetReplyState()`, called from every place that swaps engine state out from under the UI.
+- [x] Tests: `tests/storage.test.js` (19 — CRUD, availability degradation, title auto-derive vs. custom-title lock) and `tests/manual-add.test.js` (22 — addMemory/Assumption/Fact/AmbientItem, reset, restoreSnapshot, turn replyText round-trip).
+
+**Ships:** the app now behaves like the user asked — "store the assumption statuses like git" — with zero-friction persistence across browser sessions and support for tracking several independent topics/conversations side by side.
+
+---
+
 ## Remaining work (next session)
 
-If starting from this checkpoint, the codebase is fully working and all R1–R4 tests pass. Next useful work, in priority order:
+If starting from this checkpoint, the codebase is fully working, all tests pass, and the post-R4 UX upgrade is complete. Next useful work, in priority order:
 
 1. **Prove the real use case** — run a genuine months-long thread (career, health) through R1–R3, compare first reply of each session to an unbriefed chat. If the briefed reply is not visibly sharper, fix the assembler or what's being captured.
-2. **Better override UX** — replace `window.prompt` / `window.confirm` in `override.js` with in-app modals (see B1 polish list).
-3. **Export spiral** — extend `exportRecordMarkdown` to include the per-turn conversation log.
-4. **Rewind from spiral** — "Restore to here" button on a turn card.
-5. **README** for non-Cursor users.
-6. **R5** (bitemporal store) — only after R1–R4 prove the workflow in real use.
+2. **README** for non-Cursor users. _(Already exists at `/README.md` — keep it in sync as features change.)_
+3. **R5** (bitemporal store) — only after R1–R4 prove the workflow in real use.
+4. **Possible follow-ups to the notepad upgrade** (not yet requested, just observed during testing):
+   - Conversation search/filter in the dropdown once the list grows long.
+   - A lightweight indicator next to the conversation dropdown showing "saved" / "saving…" so the debounced autosave isn't invisible.
+   - Consider whether `localStorage`'s ~5–10MB quota needs a warning/export-and-clear flow for very long-running conversations with many turn snapshots (each turn stores a full record snapshot, which grows with the record).
 
 ---
 
@@ -409,4 +455,7 @@ If starting from this checkpoint, the codebase is fully working and all R1–R4 
 3. The transport seam (`ingestReply` / `getComposedPrompt`) is stable — R1–R5 sit **behind** the engine, not in the transport.
 4. The briefing uses `id=<uuid>` tokens in the emitted text so the model can reference specific records in `===PROPOSE===` proposals. The tag match falls back to the whole active pool if no tags match — never silent empty briefing.
 5. `requiresIndividualConfirm=true` items must be accepted one at a time; "Accept all (safe)" deliberately skips them.
-6. Do not edit this file unless updating handoff status — implementation lives in `src/`.
+6. **Multi-conversation state lives in `localStorage`, not in the engine's in-memory state alone.** The engine object is a singleton created once in `main.js`; switching conversations calls `engine.restoreSnapshot()` / `engine.reset()` to swap its internal state in place — it does **not** create a new engine instance. Any new UI module that reads engine state on init (rather than on every render) will break across conversation switches; always read fresh from `engine.getBoards()` / `engine.getTurns()` / etc. inside a `render()` function.
+7. Whenever a code path swaps the engine's state out from under the UI (conversation switch/new/delete, turn rewind, `.md` import), also call `transport.resetReplyState()` so the "paste the next reply" textarea and the ingest dedupe tracker don't carry over stale content from a different context.
+8. `initConversations()` must finish its synchronous bootstrap (`init()`) BEFORE `boards`/`proposals`/`spiral`/`transport` are read by its `onSwitch` callback. The bootstrap path uses `createBlankConversation(false)` (no `onSwitch` call) specifically to avoid a temporal-dead-zone crash on first page load, before those other consts exist. If you add new bootstrap-time logic to `conversations.js`, keep this ordering constraint in mind.
+9. Do not edit this file unless updating handoff status — implementation lives in `src/`.

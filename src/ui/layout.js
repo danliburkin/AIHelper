@@ -47,6 +47,41 @@ export function buildLayout(root) {
   }
   header.append(workflow);
 
+  const conversationBar = document.createElement('div');
+  conversationBar.className = 'conversation-bar';
+  conversationBar.id = 'conversation-bar';
+
+  const conversationSelect = document.createElement('select');
+  conversationSelect.id = 'conversation-select';
+  conversationSelect.className = 'conversation-select';
+  conversationSelect.setAttribute('aria-label', 'Switch conversation');
+
+  const newConversationBtn = document.createElement('button');
+  newConversationBtn.type = 'button';
+  newConversationBtn.id = 'new-conversation-btn';
+  newConversationBtn.className = 'btn btn-ghost btn-small';
+  newConversationBtn.textContent = '+ New';
+
+  const renameConversationBtn = document.createElement('button');
+  renameConversationBtn.type = 'button';
+  renameConversationBtn.id = 'rename-conversation-btn';
+  renameConversationBtn.className = 'btn btn-ghost btn-small';
+  renameConversationBtn.textContent = 'Rename';
+
+  const deleteConversationBtn = document.createElement('button');
+  deleteConversationBtn.type = 'button';
+  deleteConversationBtn.id = 'delete-conversation-btn';
+  deleteConversationBtn.className = 'btn btn-ghost btn-small btn-danger';
+  deleteConversationBtn.textContent = 'Delete';
+
+  conversationBar.append(
+    conversationSelect,
+    newConversationBtn,
+    renameConversationBtn,
+    deleteConversationBtn,
+  );
+  header.append(conversationBar);
+
   const outbound = document.createElement('section');
   outbound.className = 'outbound-panel';
 
@@ -104,8 +139,13 @@ export function buildLayout(root) {
 
   const left = document.createElement('section');
   left.className = 'panel panel-reply';
+
+  const spiralContainer = document.createElement('div');
+  spiralContainer.id = 'spiral-container';
+  spiralContainer.className = 'spiral-container';
+
   const replyLabel = document.createElement('h2');
-  replyLabel.textContent = 'Chatbot reply';
+  replyLabel.textContent = 'Paste the next reply';
   const replyHint = document.createElement('p');
   replyHint.className = 'panel-hint';
   replyHint.textContent =
@@ -129,7 +169,7 @@ export function buildLayout(root) {
   ingestBtn.className = 'btn';
   ingestBtn.textContent = 'Parse reply';
   replyActions.append(pasteBtn, ingestBtn);
-  left.append(replyLabel, replyHint, replyArea, replyActions);
+  left.append(spiralContainer, replyLabel, replyHint, replyArea, replyActions);
 
   const right = document.createElement('section');
   right.className = 'panel panel-boards';
@@ -139,11 +179,7 @@ export function buildLayout(root) {
   boardsContainer.id = 'boards-container';
   boardsContainer.className = 'boards-container';
 
-  const spiralContainer = document.createElement('div');
-  spiralContainer.id = 'spiral-container';
-  spiralContainer.className = 'spiral-container';
-
-  right.append(boardsLabel, boardsContainer, spiralContainer);
+  right.append(boardsLabel, boardsContainer);
 
   main.append(left, right);
 
@@ -235,6 +271,10 @@ export function buildLayout(root) {
     recordView,
     proposalsContainer,
     spiralContainer,
+    conversationSelect,
+    newConversationBtn,
+    renameConversationBtn,
+    deleteConversationBtn,
     status,
     workflowSteps: workflow,
   };

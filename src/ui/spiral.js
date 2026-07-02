@@ -97,6 +97,17 @@ export function initSpiral(container, engine, onRestore) {
         card.append(el('p', 'turn-added', summary));
       }
 
+      if (turn.replyText && turn.replyText.trim()) {
+        const details = document.createElement('details');
+        details.className = 'turn-reply-details';
+        const summaryEl = document.createElement('summary');
+        summaryEl.className = 'turn-reply-summary';
+        summaryEl.textContent = 'Show pasted reply';
+        const replyBody = el('pre', 'turn-reply-body', turn.replyText);
+        details.append(summaryEl, replyBody);
+        card.append(details);
+      }
+
       const restoreBtn = el('button', 'btn btn-ghost btn-small turn-restore-btn', 'Restore to here');
       restoreBtn.type = 'button';
       restoreBtn.title = `Roll back to the state after turn ${turn.index}`;

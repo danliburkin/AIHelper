@@ -188,9 +188,26 @@ export function initTransport(refs, engine, onUpdate) {
     }
 
     const result = await engine.ingestReplyWithFallback(text);
-    onUpdate();
-
     const total = result.memory + result.assumptions + result.facts;
+
+    if (total > 0) {
+      // Record the turn snapshot BEFORE onUpdate() so the new turn card
+      // appears in the very next render pass rather than waiting for some
+      // later, unrelated state change to trigger a re-render.
+      const boards = engine.getBoards();
+      const revokedCount =
+        boards.memory.filter((m) => !m.active).length +
+        boards.facts.filter((f) => !f.active).length +
+        boards.assumptions.filter((a) => !a.active).length;
+      engine.addTurn(taskInput.value.trim(), {
+        memory: result.memory,
+        facts: result.facts,
+        assumptions: result.assumptions,
+        ambient: result.ambient || 0,
+      }, revokedCount, text);
+    }
+
+    onUpdate();
 
     if (total === 0) {
       setStatus(
@@ -208,20 +225,6 @@ export function initTransport(refs, engine, onUpdate) {
     setStatus(`Parsed ${formatAdded(result)} into boards.${proposalSuffix}`, 'success');
     highlightStep(4);
     lastIngestedText = text;
-
-    // Record a turn in the spiral. Count revoked items at this point
-    // (items the user suppressed since the last ingest).
-    const boards = engine.getBoards();
-    const revokedCount =
-      boards.memory.filter((m) => !m.active).length +
-      boards.facts.filter((f) => !f.active).length +
-      boards.assumptions.filter((a) => !a.active).length;
-    engine.addTurn(taskInput.value.trim(), {
-      memory: result.memory,
-      facts: result.facts,
-      assumptions: result.assumptions,
-      ambient: result.ambient || 0,
-    }, revokedCount);
   }
 
   replyArea.addEventListener('paste', () => {
@@ -297,14 +300,13 @@ export function initTransport(refs, engine, onUpdate) {
       try {
         const text = await file.text();
         const result = engine.importRecord(text);
+        resetReplyState();
         onUpdate();
         const totals = `${result.memory} memory, ${result.facts} facts, ${result.assumptions} assumptions, ${result.ambient} ambient`;
         const when = result.exported_at ? ` (exported ${result.exported_at})` : '';
         setStatus(`Imported record: ${totals}${when}.`, 'success');
-        if (result.originalTask) {
-          taskInput.value = result.originalTask;
-          updatePromptPreview();
-        }
+        taskInput.value = result.originalTask || '';
+        updatePromptPreview();
       } catch (err) {
         setStatus(`Import failed: ${err.message}`, 'warning');
       } finally {
@@ -320,10 +322,22 @@ export function initTransport(refs, engine, onUpdate) {
     });
   }
 
+  /**
+   * Clear the "paste the next reply" box and the ingest dedupe tracker.
+   * Call this whenever the engine's state is swapped out from under the UI
+   * by something other than the normal ingest flow — switching/creating a
+   * conversation, rewinding to a turn, or importing a record — so a reply
+   * pasted for a different context does not linger in the box.
+   */
+  function resetReplyState() {
+    replyArea.value = '';
+    lastIngestedText = '';
+  }
+
   replyArea.addEventListener('focus', () => highlightStep(3));
 
   updatePromptPreview();
   setStatus('Type your question — the decorated prompt updates automatically. One button: Copy to chatbot.');
 
-  return { updateContextSpec, setStatus, updatePromptPreview, onBoardsEdited };
+  return { updateContextSpec, setStatus, updatePromptPreview, onBoardsEdited, resetReplyState };
 }

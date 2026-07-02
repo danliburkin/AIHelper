@@ -335,6 +335,108 @@ export function createEngine() {
       }
     },
 
+    /**
+     * Manually add a memory bullet the user asserts directly (not parsed from
+     * a reply). Provenance is user_asserted / confidence high since the user
+     * is the strongest source of truth about themselves.
+     * @param {string} text
+     * @param {{ tags?: string[] }} [opts]
+     * @returns {object|null} the created item, or null if text is empty
+     */
+    addMemory(text, opts = {}) {
+      const trimmed = String(text || '').trim();
+      if (!trimmed) return null;
+      const item = {
+        id: newId(),
+        originalText: trimmed,
+        committedText: trimmed,
+        active: true,
+        source: 'user_added',
+        provenance: 'user_asserted',
+        confidence: 'high',
+        tags: Array.isArray(opts.tags) ? [...opts.tags] : [],
+      };
+      applyRecordDefaults(item, 'memory');
+      state.memory.push(item);
+      state.lastActivityAt = item.updated_at;
+      return { ...item };
+    },
+
+    /**
+     * Manually add an assumption the user wants tracked, without waiting for
+     * the model to propose it.
+     * @param {string} statement
+     * @param {string} [reason]
+     * @param {{ tags?: string[] }} [opts]
+     * @returns {object|null}
+     */
+    addAssumption(statement, reason = '', opts = {}) {
+      const trimmed = String(statement || '').trim();
+      if (!trimmed) return null;
+      const item = {
+        id: newId(),
+        statement: trimmed,
+        reason: String(reason || '').trim(),
+        originalStatement: trimmed,
+        originalReason: String(reason || '').trim(),
+        active: true,
+        provenance: 'user_asserted',
+        confidence: 'high',
+        status: 'active',
+        tags: Array.isArray(opts.tags) ? [...opts.tags] : [],
+      };
+      applyRecordDefaults(item, 'assumptions');
+      state.assumptions.push(item);
+      state.lastActivityAt = item.updated_at;
+      return { ...item };
+    },
+
+    /**
+     * Manually add a fact the user knows to be true.
+     * @param {string} content
+     * @param {{ tags?: string[], type?: 'computed'|'retrieved' }} [opts]
+     * @returns {object|null}
+     */
+    addFact(content, opts = {}) {
+      const trimmed = String(content || '').trim();
+      if (!trimmed) return null;
+      const item = {
+        id: newId(),
+        content: trimmed,
+        type: opts.type === 'retrieved' ? 'retrieved' : 'computed',
+        sourceUrl: undefined,
+        sourceDate: undefined,
+        active: true,
+        provenance: 'user_asserted',
+        confidence: 'high',
+        tags: Array.isArray(opts.tags) ? [...opts.tags] : [],
+      };
+      applyRecordDefaults(item, 'facts', {}, { factType: item.type });
+      state.facts.push(item);
+      state.lastActivityAt = item.updated_at;
+      return { ...item };
+    },
+
+    /**
+     * Manually add an ambient (soft context) item — mood, standing constraint, etc.
+     * @param {string} text
+     * @param {'low'|'medium'|'high'} [intensity]
+     * @param {{ tags?: string[] }} [opts]
+     * @returns {object|null}
+     */
+    addAmbientItem(text, intensity = 'medium', opts = {}) {
+      const trimmed = String(text || '').trim();
+      if (!trimmed) return null;
+      const record = createAmbientRecord({
+        text: trimmed,
+        intensity,
+        tags: Array.isArray(opts.tags) ? opts.tags : [],
+      });
+      state.ambient.push(record);
+      state.lastActivityAt = record.created_at;
+      return { ...record };
+    },
+
     editAssumption(id, statement, reason) {
       const item = state.assumptions.find((a) => a.id === id);
       if (!item) return;
@@ -425,6 +527,15 @@ export function createEngine() {
       state.originalTask = task;
     },
 
+    /**
+     * Read the current question/task text — used by the UI to sync the
+     * question input box after loading a conversation from storage.
+     * @returns {string}
+     */
+    getOriginalTask() {
+      return state.originalTask || '';
+    },
+
     setTopic(topic) {
       state.topic = topic;
     },
@@ -436,13 +547,15 @@ export function createEngine() {
      * @param {string} question - the question that produced this reply
      * @param {{ memory: number, facts: number, assumptions: number, ambient: number }} added
      * @param {number} [revokedCount] - items the user had suppressed before sending this turn's prompt
+     * @param {string} [replyText] - the raw chatbot reply text that was ingested, kept for the notepad view
      */
-    addTurn(question, added, revokedCount = 0) {
+    addTurn(question, added, revokedCount = 0, replyText = '') {
       const snapshot = buildSnapshot(state);
       snapshot.lastActivityAt = state.lastActivityAt;
       state.turns.push({
         index: state.turns.length + 1,
         question: String(question || '').trim(),
+        replyText: String(replyText || ''),
         timestamp: nowIso(),
         added: { ...added },
         revokedCount,
@@ -559,6 +672,35 @@ export function createEngine() {
         originalTask: state.originalTask,
         lastActivityAt: state.lastActivityAt,
       };
+    },
+
+    /**
+     * Apply a snapshot object directly (as opposed to importRecord, which
+     * parses a markdown/JSON file). Used by the multi-conversation UI when
+     * switching between conversations stored in localStorage.
+     * @param {object} snapshot - shape produced by exportSnapshot()
+     */
+    restoreSnapshot(snapshot) {
+      applySnapshot(state, snapshot);
+      state.lastActivityAt = snapshot.lastActivityAt || null;
+      state.pendingProposals = [];
+    },
+
+    /**
+     * Wipe all state back to a blank conversation. Used by "+ New conversation".
+     * The engine object identity is preserved so existing UI closures keep working.
+     */
+    reset() {
+      state.memory = [];
+      state.facts = [];
+      state.assumptions = [];
+      state.ambient = [];
+      state.originalTask = '';
+      state.topic = '';
+      state.hasCorrectiveEdits = false;
+      state.lastActivityAt = null;
+      state.pendingProposals = [];
+      state.turns = [];
     },
   };
 }

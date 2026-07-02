@@ -163,6 +163,39 @@ body {
   color: #111111;
 }
 
+/* ---------- Conversation bar ---------- */
+
+.conversation-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.conversation-select {
+  flex: 1 1 220px;
+  min-width: 160px;
+  max-width: 420px;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.conversation-select:focus {
+  outline: none;
+  border-color: var(--border-strong);
+  box-shadow: var(--focus-ring);
+}
+
+.btn-danger {
+  color: #ff5d4f;
+  border-color: #ff5d4f;
+}
+
 .workflow-num {
   display: inline-flex;
   align-items: center;
@@ -382,12 +415,26 @@ body {
   border-top: 3px solid var(--assumptions);
 }
 
+.board-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
 .board-title {
-  margin: 0 0 0.75rem;
+  margin: 0;
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
+}
+
+.btn-board-add {
+  flex-shrink: 0;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.72rem;
 }
 
 .board-ambient {
@@ -638,6 +685,11 @@ body {
 .btn-ghost:hover {
   background: var(--surface);
   color: var(--text);
+}
+
+.btn-ghost.btn-danger:hover {
+  background: rgba(255, 93, 79, 0.1);
+  color: #ff5d4f;
 }
 
 .btn-large {
@@ -1149,6 +1201,37 @@ body {
 .turn-restore-btn {
   align-self: flex-start;
   margin-top: 0.2rem;
+}
+
+.turn-reply-details {
+  margin: 0.15rem 0;
+}
+
+.turn-reply-summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.turn-reply-summary:hover {
+  color: var(--text);
+}
+
+.turn-reply-body {
+  margin: 0.4rem 0 0;
+  padding: 0.55rem 0.65rem;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+  color: var(--text-secondary);
 }
 
 /* ---------- In-app modals (replaces window.prompt / confirm) ---------- */
