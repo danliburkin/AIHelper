@@ -34,7 +34,7 @@ The existing copy-paste transport is already model-agnostic (clipboard works on 
 ```bash
 npm install
 npm run dev          # → http://localhost:5173
-npm test             # vitest (76 tests)
+npm test             # vitest (140 tests)
 npm run build        # → dist/ (static, no Node at runtime)
 ```
 
@@ -105,16 +105,17 @@ Optional: Gemini Nano via `window.LanguageModel` for parse/compose fallback only
 
 ---
 
-## User flow (B1, as implemented — one button)
+## User flow (as implemented — notepad + one button)
 
+0. **Pick a conversation** — the header's conversation dropdown restores the last-active conversation automatically (localStorage), or click **+ New** to start a fresh one. Each conversation has its own independent boards, turn log, and question.
 1. **Type question** in "Your question" → live **decorated prompt** preview updates below.
 2. **Copy to chatbot** → paste into external chatbot. The decorated prompt now starts with a `===BRIEFING===` block (R3) and includes `===PROPOSE===` format instructions (R4).
-3. **Paste reply** into "Chatbot reply" (auto-parses on paste, or click Parse reply).
-4. Boards fill from structured blocks. **Pending proposals** panel appears above the boards when the reply contains a `===PROPOSE===` block (R4). A Turn card is appended to the Conversation spiral.
-5. **Edit boards** — uncheck assumptions, override memory, edit assumption text. Set `status` per row (R1). Accept/reject model proposals (R4).
+3. **Paste the next reply** into the textarea at the bottom of the left column (auto-parses on paste, or click Parse reply). Earlier turns stay visible as cards ABOVE this box — the flow reads top-to-bottom like a transcript, and each turn card has a "Show pasted reply" toggle plus a "Restore to here" button.
+4. Boards fill from structured blocks. **Pending proposals** panel appears above the main area when the reply contains a `===PROPOSE===` block (R4). A new Turn card is appended to the conversation log immediately.
+5. **Edit boards** — uncheck assumptions, override memory, edit assumption text, set `status` per row (R1), or click **+ Add** on any board to manually add your own memory/fact/assumption/ambient item without waiting on the model. Accept/reject model proposals (R4).
 6. Preview badge switches to **Regenerate with your edits** when boards are edited.
 7. **Copy to chatbot** again — prompt includes DELETE instructions for revoked items.
-8. Paste new reply → ingest → verify answer changed.
+8. Paste new reply → ingest → verify answer changed. The conversation auto-saves to localStorage (debounced) after every step — closing the tab and reopening it restores exactly where you left off, no export/import needed.
 
 **Critical:** Plain chatbot answers without structured blocks will **not** populate boards. The decorated prompt instructs the model to emit them.
 
@@ -125,9 +126,12 @@ Optional: Gemini Nano via `window.LanguageModel` for parse/compose fallback only
 ```
 User question  →  composeSmartPrompt()  →  clipboard  →  external chatbot
 External reply  →  ingestReplyWithFallback()  →  boards / record / proposals  →  UI
+
+Conversation switch  →  storage.loadConversation(id)  →  engine.restoreSnapshot()  →  UI re-renders
+Any state mutation    →  conversations.scheduleSave()  →  storage.saveConversation(id, engine.exportSnapshot())
 ```
 
-Engine never touches clipboard or DOM. The record layer (R1–R4) sits **behind** the engine, not in the transport.
+Engine never touches clipboard, localStorage, or DOM directly — `src/ui/conversations.js` is the only module that calls into `src/engine/storage.js`, mirroring how `src/ui/transport.js` is the only module that touches the clipboard. The record layer (R1–R4) and the conversation-persistence layer both sit **behind** the engine, not inside it.
 
 ---
 
@@ -359,7 +363,7 @@ The briefing block is prepended to `composeTask` / `composeRestart` in place of 
 - [x] Assumption edit revocations — surface old vs new in DELETE block
 - [x] Rewind from spiral — "Restore to here" on a turn card
 - [x] Export spiral — include turn log in `.md` export
-- [ ] README for non-Cursor users
+- [x] README for non-Cursor users — see `/README.md`
 
 ### R1 — Typed record schema ✓
 
