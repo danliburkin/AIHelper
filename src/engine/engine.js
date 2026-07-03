@@ -2,6 +2,7 @@ import { parseReplyBlocks, hasStructuredBlocks } from './parser.js';
 import { buildContextSpec, buildRevocations } from './contextSpec.js';
 import { composePrompt, composeSmartPrompt, needsRegeneratePrompt, restateMemory } from './prompts.js';
 import { parseWithNanoFallback, polishPromptWithNano } from './nano.js';
+import { newId } from './ids.js';
 import {
   applyRecordDefaults,
   createAmbientRecord,
@@ -21,14 +22,17 @@ import {
 import { buildBriefing, deriveTopicTags } from './briefing.js';
 import { parseProposals, annotateImpact, applyProposal } from './proposals.js';
 
-function newId() {
-  return typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : 'r_' + Math.random().toString(36).slice(2, 10);
-}
-
 function nowIso() {
   return new Date().toISOString();
+}
+
+function hasParsedItems(parsed) {
+  return (
+    parsed.memory.length > 0 ||
+    parsed.assumptions.length > 0 ||
+    parsed.facts.length > 0 ||
+    (parsed.ambient || []).length > 0
+  );
 }
 
 function appendParsed(state, parsed) {
@@ -129,6 +133,7 @@ export function createEngine() {
     hasCorrectiveEdits: false,
     lastActivityAt: null,
     pendingProposals: [],
+    proposalIdMap: new Map(),
     turns: [],
   };
 
@@ -152,25 +157,15 @@ export function createEngine() {
   }
 
   return {
-    ingestReply(text) {
-      const added = appendParsed(state, parseReplyBlocks(text));
-      const proposalsAdded = harvestProposals(text);
-      if (added.memory + added.assumptions + added.facts + added.ambient > 0) {
-        state.lastActivityAt = nowIso();
-      }
-      return { ...added, proposals: proposalsAdded };
-    },
-
     async ingestReplyWithFallback(text) {
       let parsed = parseReplyBlocks(text);
-      const usedNano =
-        parsed.memory.length === 0 &&
-        parsed.assumptions.length === 0 &&
-        parsed.facts.length === 0 &&
-        (parsed.ambient || []).length === 0;
+      const structuredParseEmpty = !hasParsedItems(parsed);
+      let usedNano = false;
 
-      if (usedNano) {
-        parsed = await parseWithNanoFallback(text);
+      if (structuredParseEmpty) {
+        const fallback = await parseWithNanoFallback(text);
+        parsed = fallback.parsed;
+        usedNano = fallback.usedNano;
       }
 
       const added = appendParsed(state, parsed);
@@ -178,12 +173,14 @@ export function createEngine() {
       if (added.memory + added.assumptions + added.facts + added.ambient > 0) {
         state.lastActivityAt = nowIso();
       }
+      state.proposalIdMap = new Map();
       const proposalsAdded = harvestProposals(text);
 
       return {
         ...added,
         proposals: proposalsAdded,
         hadStructuredBlocks: hasStructuredBlocks(text),
+        structuredParseEmpty,
         usedNano,
       };
     },
@@ -203,7 +200,7 @@ export function createEngine() {
       const idx = state.pendingProposals.findIndex((p) => p.id === proposalId);
       if (idx === -1) return { applied: false, reason: 'no such proposal' };
       const proposal = state.pendingProposals[idx];
-      const result = applyProposal(state, proposal);
+      const result = applyProposal(state, proposal, state.proposalIdMap);
       if (result.applied) {
         state.pendingProposals.splice(idx, 1);
         state.lastActivityAt = nowIso();
@@ -229,14 +226,13 @@ export function createEngine() {
      */
     acceptAllSafeProposals() {
       const results = [];
-      const localIdMap = new Map();
       const survivors = [];
       for (const proposal of state.pendingProposals) {
         if (proposal.requiresIndividualConfirm) {
           survivors.push(proposal);
           continue;
         }
-        const result = applyProposal(state, proposal, localIdMap);
+        const result = applyProposal(state, proposal, state.proposalIdMap);
         results.push({ proposal_id: proposal.id, ...result });
         if (!result.applied) survivors.push(proposal);
       }
@@ -550,7 +546,7 @@ export function createEngine() {
      * @param {string} [replyText] - the raw chatbot reply text that was ingested, kept for the notepad view
      */
     addTurn(question, added, revokedCount = 0, replyText = '') {
-      const snapshot = buildSnapshot(state);
+      const snapshot = buildSnapshot({ ...state, turns: [] });
       snapshot.lastActivityAt = state.lastActivityAt;
       state.turns.push({
         index: state.turns.length + 1,
@@ -588,6 +584,7 @@ export function createEngine() {
       applySnapshot(state, turn.snapshot);
       if (turn.snapshot.lastActivityAt) state.lastActivityAt = turn.snapshot.lastActivityAt;
       state.pendingProposals = [];
+      state.proposalIdMap = new Map();
       state.turns = savedTurns;
       return true;
     },
@@ -663,6 +660,8 @@ export function createEngine() {
         }
         state.lastActivityAt = max;
       }
+      state.pendingProposals = [];
+      state.proposalIdMap = new Map();
       return {
         memory: state.memory.length,
         facts: state.facts.length,
@@ -684,6 +683,7 @@ export function createEngine() {
       applySnapshot(state, snapshot);
       state.lastActivityAt = snapshot.lastActivityAt || null;
       state.pendingProposals = [];
+      state.proposalIdMap = new Map();
     },
 
     /**
@@ -700,6 +700,7 @@ export function createEngine() {
       state.hasCorrectiveEdits = false;
       state.lastActivityAt = null;
       state.pendingProposals = [];
+      state.proposalIdMap = new Map();
       state.turns = [];
     },
   };

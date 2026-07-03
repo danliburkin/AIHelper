@@ -227,7 +227,16 @@ export function buildBriefing(state, opts = {}) {
   const keepOrder = [...pool].sort(compareForPruning); // best-to-keep first
   const keptSet = new Set();
   const dropped = [];
+  const ambientOverflow = remainingBudget <= 0 && keepOrder.length > 0;
+  if (ambientOverflow) {
+    const highConfidence = pool
+      .filter((rec) => rec.confidence === 'high')
+      .sort(compareRecency)[0];
+    const fallback = highConfidence || pool[0];
+    keptSet.add(fallback.id);
+  }
   for (const rec of keepOrder) {
+    if (keptSet.has(rec.id)) continue;
     const renderedLen = renderStateful(rec).length + 1;
     if (renderedLen <= remainingBudget) {
       keptSet.add(rec.id);
@@ -321,6 +330,7 @@ export function buildBriefing(state, opts = {}) {
       tagFallback,
       elapsed,
       supersessionCount: supersessionNotes.length,
+      ambientOverflow,
     },
   };
 }

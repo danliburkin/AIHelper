@@ -56,6 +56,8 @@ describe('storage — createConversationId', () => {
     expect(a).not.toBe(b);
     expect(typeof a).toBe('string');
     expect(a.length).toBeGreaterThan(0);
+    expect(a.startsWith('conv_')).toBe(true);
+    expect(b.startsWith('conv_')).toBe(true);
   });
 });
 

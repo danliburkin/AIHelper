@@ -16,6 +16,8 @@
  * they degrade to no-ops / empty results rather than throwing.
  */
 
+import { newId } from './ids.js';
+
 const INDEX_KEY = 'context-lens:index';
 const ACTIVE_KEY = 'context-lens:active';
 const CONV_PREFIX = 'context-lens:conv:';
@@ -53,9 +55,7 @@ function writeJson(store, key, value) {
 }
 
 export function createConversationId() {
-  return typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : 'conv_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  return newId('conv_');
 }
 
 export function isStorageAvailable() {

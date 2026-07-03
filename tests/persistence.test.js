@@ -181,4 +181,22 @@ describe('R2 snapshot envelope', () => {
     // is still appropriate; but the corrective-edits flag itself is reset.
     expect(engine2.hasCorrectiveEdits()).toBe(false);
   });
+
+  it('turn snapshots do not recursively nest earlier turns', async () => {
+    const engine = createEngine();
+    let sizeAtFive = 0;
+
+    for (let i = 1; i <= 10; i += 1) {
+      const reply = `===MEMORY===\n- turn ${i} memory\n===END===`;
+      const added = await engine.ingestReplyWithFallback(reply);
+      engine.addTurn(`question ${i}`, added, 0, reply);
+      if (i === 5) sizeAtFive = JSON.stringify(engine.exportSnapshot()).length;
+    }
+
+    const sizeAtTen = JSON.stringify(engine.exportSnapshot()).length;
+    expect(sizeAtTen).toBeLessThan(sizeAtFive * 3);
+    for (const turn of engine.exportSnapshot().turns) {
+      expect(turn.snapshot.turns).toEqual([]);
+    }
+  });
 });

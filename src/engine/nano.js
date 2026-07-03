@@ -1,5 +1,14 @@
 import { parseReplyBlocks } from './parser.js';
 
+function hasParsedItems(parsed) {
+  return (
+    parsed.memory.length > 0 ||
+    parsed.assumptions.length > 0 ||
+    parsed.facts.length > 0 ||
+    (parsed.ambient || []).length > 0
+  );
+}
+
 export async function isNanoAvailable() {
   if (typeof LanguageModel === 'undefined') return false;
 
@@ -30,12 +39,8 @@ async function runNano(prompt) {
  */
 export async function parseWithNanoFallback(text) {
   const strict = parseReplyBlocks(text);
-  const hasContent =
-    strict.memory.length > 0 ||
-    strict.assumptions.length > 0 ||
-    strict.facts.length > 0;
 
-  if (hasContent) return strict;
+  if (hasParsedItems(strict)) return { parsed: strict, usedNano: false };
 
   const normalized = await runNano(
     `Convert the following chatbot reply into this exact block format. Preserve meaning. Output only the blocks:
@@ -55,8 +60,9 @@ ${text}
 """`,
   );
 
-  if (!normalized) return strict;
-  return parseReplyBlocks(normalized);
+  if (!normalized) return { parsed: strict, usedNano: false };
+  const parsed = parseReplyBlocks(normalized);
+  return { parsed: hasParsedItems(parsed) ? parsed : strict, usedNano: hasParsedItems(parsed) };
 }
 
 /**

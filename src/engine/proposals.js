@@ -8,7 +8,7 @@
  *   ===PROPOSE===
  *   - mark <id> <status> | rationale: <one-liner>
  *   - supersede <old_id> with <new_id> | rationale: <one-liner>
- *   - new <board>: <text> | tags: t1,t2 | rationale: <one-liner>
+ *   - new <board> [prop-<n>]: <text> | tags: t1,t2 | rationale: <one-liner>
  *   - tag <id> <comma-separated tags> | rationale: <one-liner>
  *   ===END===
  *
@@ -25,6 +25,7 @@
  */
 
 import { isValidStatus } from './records.js';
+import { newId } from './ids.js';
 
 const PROPOSE_START = '===PROPOSE===';
 const PROPOSE_END = '===END===';
@@ -42,7 +43,7 @@ export const HIGH_IMPACT_TAGS = Object.freeze([
 const HIGH_IMPACT_KINDS = new Set(['goal', 'decision']);
 
 function newProposalId() {
-  return 'p_' + Math.random().toString(36).slice(2, 10);
+  return newId('p_');
 }
 
 function extractTrailingRationale(body) {
@@ -108,16 +109,17 @@ function parseLine(rawLine) {
     };
   }
 
-  // "new <board>: <text> | tags: ..."
-  const newMatch = afterRationale.match(/^new\s+(memory|facts|assumptions)\s*:\s*(.+?)\s*$/i);
+  // "new <board> [prop-<n>]: <text> | tags: ..."
+  const newMatch = afterRationale.match(/^new\s+(memory|facts|assumptions)(?:\s+(prop-[\w-]+))?\s*:\s*(.+?)\s*$/i);
   if (newMatch) {
     const board = newMatch[1].toLowerCase();
     if (!VALID_BOARDS.has(board)) return null;
-    const { rest: text, tags } = extractTrailingTags(newMatch[2]);
+    const { rest: text, tags } = extractTrailingTags(newMatch[3]);
     if (!text) return null;
     return {
       type: 'new',
       board,
+      local_id: newMatch[2] || '',
       text,
       tags,
       rationale,
@@ -275,10 +277,7 @@ export function applyProposal(state, proposal, localIdMap = new Map()) {
     if (!Array.isArray(board)) {
       return { applied: false, reason: `unknown board: ${proposal.board}` };
     }
-    const id =
-      typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : 'r_' + Math.random().toString(36).slice(2, 10);
+    const id = newId();
     const created = {
       id,
       active: true,
@@ -306,7 +305,7 @@ export function applyProposal(state, proposal, localIdMap = new Map()) {
       created.reason = 'model_proposed';
     }
     board.push(created);
-    if (proposal.id) localIdMap.set(proposal.id, id);
+    if (proposal.local_id) localIdMap.set(proposal.local_id, id);
     return { applied: true, target_id: id };
   }
 

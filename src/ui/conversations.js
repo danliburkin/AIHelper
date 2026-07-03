@@ -2,6 +2,14 @@ import * as storage from '../engine/storage.js';
 import { showPromptModal, showConfirmModal } from './modal.js';
 
 const SAVE_DEBOUNCE_MS = 500;
+export const AUTOSAVE_FAILURE_MESSAGE = 'Autosave failed — storage full or unavailable. Export your record.';
+
+export function surfaceAutosaveFailure(refs) {
+  if (!refs.status) return;
+  refs.status.textContent = AUTOSAVE_FAILURE_MESSAGE;
+  refs.status.classList.remove('status-success');
+  refs.status.classList.add('status-warning');
+}
 
 /**
  * Multi-conversation controller. Wires the conversation-switcher dropdown
@@ -43,7 +51,8 @@ export function initConversations(refs, engine, onSwitch) {
       saveTimer = null;
     }
     if (!activeId) return;
-    storage.saveConversation(activeId, engine.exportSnapshot());
+    const saved = storage.saveConversation(activeId, engine.exportSnapshot());
+    if (!saved) surfaceAutosaveFailure(refs);
     renderSelect();
   }
 

@@ -208,6 +208,49 @@ describe('R3 buildBriefing — token cap', () => {
     const { text } = buildBriefing(state, { topicTags: ['x'], tokenBudget: 20 });
     expect(text).toContain('must survive cap');
   });
+
+  it('keeps the newest high-confidence stateful item when ambient exhausts the budget', () => {
+    const state = emptyState();
+    state.memory.push(
+      mkStateful({
+        id: 'high-old',
+        text: 'older high confidence stateful item',
+        confidence: 'high',
+        updated_at: '2024-01-01T00:00:00.000Z',
+        tags: ['x'],
+      }),
+      mkStateful({
+        id: 'high-new',
+        text: 'newer high confidence stateful item',
+        confidence: 'high',
+        updated_at: '2025-01-01T00:00:00.000Z',
+        tags: ['x'],
+      }),
+      mkStateful({
+        id: 'low-new',
+        text: 'newer low confidence stateful item',
+        confidence: 'low',
+        updated_at: '2026-01-01T00:00:00.000Z',
+        tags: ['x'],
+      }),
+    );
+    state.ambient.push({
+      id: 'amb',
+      kind: 'ambient',
+      text: 'A'.repeat(400),
+      intensity: 'high',
+      tags: [],
+      created_at: '2024-01-01T00:00:00.000Z',
+      last_seen_at: '2024-01-02T00:00:00.000Z',
+      active: true,
+    });
+
+    const { text, meta } = buildBriefing(state, { topicTags: ['x'], tokenBudget: 1 });
+    expect(meta.ambientOverflow).toBe(true);
+    expect(text).toContain('newer high confidence stateful item');
+    expect(text).not.toContain('older high confidence stateful item');
+    expect(text).not.toContain('newer low confidence stateful item');
+  });
 });
 
 describe('R3 buildBriefing — supersession', () => {

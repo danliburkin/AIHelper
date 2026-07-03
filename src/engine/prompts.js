@@ -17,11 +17,11 @@ If — AND ONLY IF — this turn produced MATERIAL changes to the longitudinal r
 
 Proposal shapes:
   - mark <existing_id> <new_status> | rationale: <reason>
-  - supersede <old_existing_id> with <new_existing_id> | rationale: <reason>
-  - new <board>: <text> | tags: <t1,t2> | rationale: <reason>
+  - supersede <old_existing_id> with <existing_id_or_prop_id> | rationale: <reason>
+  - new <board> [prop-<n>]: <text> | tags: <t1,t2> | rationale: <reason>
   - tag <existing_id> <t1,t2,...> | rationale: <reason>
   where <board> ∈ memory | facts | assumptions and <new_status> ∈ active | open | done | dropped | revived.
-  Use the ids exactly as they appear in the Briefing's "id=<...>" tokens.
+  Use existing ids exactly as they appear in the Briefing's "id=<...>" tokens. To supersede with a sibling new proposal, give that new proposal a prop-<n> id and reference it from supersede.
 
 ===MEMORY===
 - <bullet> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
@@ -34,7 +34,8 @@ Proposal shapes:
 - text: <ambient note> | intensity: <low | medium | high> [ | tags: ... ]
 ===PROPOSE===
 - mark <id> done | rationale: <reason>
-- new memory: <text> | tags: <t1,t2> | rationale: <reason>
+- new memory prop-1: <text> | tags: <t1,t2> | rationale: <reason>
+- supersede <old_id> with prop-1 | rationale: <reason>
 ===END===`;
 
 function composePrimeAssumptions(state) {

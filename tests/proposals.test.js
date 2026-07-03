@@ -3,9 +3,9 @@ import { createEngine } from '../src/engine/engine.js';
 import {
   parseProposals,
   annotateImpact,
-  applyProposal,
   HIGH_IMPACT_TAGS,
 } from '../src/engine/proposals.js';
+import { addedCount, isSuccessfulIngest, shouldWarnRawQuestion } from '../src/ui/transport.js';
 
 const REPLY_BASE = `Some answer.
 
@@ -27,7 +27,7 @@ describe('R4 parseProposals', () => {
       `- mark abc done | rationale: completed
 - supersede old1 with new1 | rationale: replaced
 - tag abc career, planning | rationale: better discoverability
-- new memory: I committed to leaving by Q3 | tags: career, decision | rationale: explicit user commitment
+- new memory prop-1: I committed to leaving by Q3 | tags: career, decision | rationale: explicit user commitment
 - not a real proposal line`,
     );
     const proposals = parseProposals(text);
@@ -51,6 +51,7 @@ describe('R4 parseProposals', () => {
     expect(proposals[3]).toMatchObject({
       type: 'new',
       board: 'memory',
+      local_id: 'prop-1',
       text: 'I committed to leaving by Q3',
       tags: ['career', 'decision'],
     });
@@ -246,6 +247,46 @@ describe('R4 — supersede applies bidirectional links and stale provenance', ()
       expect.arrayContaining([expect.objectContaining({ rel: 'supersedes', target_id: oldItem.id })]),
     );
   });
+
+  it('new-then-supersede resolves a prop-id across individual accepts', async () => {
+    const engine = createEngine();
+    await engine.ingestReplyWithFallback(`===MEMORY===\n- old plan\n===END===`);
+    const oldItem = engine.getBoards().memory[0];
+
+    await engine.ingestReplyWithFallback(`===PROPOSE===
+- new memory prop-1: better plan | tags: planning | rationale: replaces old plan
+- supersede ${oldItem.id} with prop-1 | rationale: newer plan
+===END===`);
+
+    const [newProposal, supersedeProposal] = engine.getPendingProposals();
+    expect(engine.acceptProposal(newProposal.id).applied).toBe(true);
+    const result = engine.acceptProposal(supersedeProposal.id);
+    expect(result.applied).toBe(true);
+
+    const boards = engine.getBoards().memory;
+    const oldAfter = boards.find((m) => m.id === oldItem.id);
+    const newAfter = boards.find((m) => m.committedText === 'better plan');
+    expect(oldAfter.status).toBe('dropped');
+    expect(newAfter.links).toEqual(
+      expect.arrayContaining([expect.objectContaining({ rel: 'supersedes', target_id: oldItem.id })]),
+    );
+  });
+
+  it('supersede with an unaccepted prop-id fails clearly', async () => {
+    const engine = createEngine();
+    await engine.ingestReplyWithFallback(`===MEMORY===\n- old plan\n===END===`);
+    const oldItem = engine.getBoards().memory[0];
+
+    await engine.ingestReplyWithFallback(`===PROPOSE===
+- new memory prop-1: better plan | tags: planning | rationale: replaces old plan
+- supersede ${oldItem.id} with prop-1 | rationale: newer plan
+===END===`);
+
+    const supersedeProposal = engine.getPendingProposals().find((p) => p.type === 'supersede');
+    const result = engine.acceptProposal(supersedeProposal.id);
+    expect(result.applied).toBe(false);
+    expect(result.reason).toContain(`supersede missing target(s): ${oldItem.id} / prop-1`);
+  });
 });
 
 describe('R4 — tag proposal updates tags and timestamps', () => {
@@ -309,8 +350,36 @@ describe('R4 — material-only rule is in the prompt', async () => {
     expect(prompt).toContain('MATERIAL');
     expect(prompt).toContain('rationale:');
     expect(prompt).toContain('mark <existing_id> <new_status>');
-    expect(prompt).toContain('supersede <old_existing_id> with <new_existing_id>');
-    expect(prompt).toContain('new <board>:');
+    expect(prompt).toContain('supersede <old_existing_id> with <existing_id_or_prop_id>');
+    expect(prompt).toContain('new <board> [prop-<n>]:');
     expect(prompt).toContain('tag <existing_id>');
+  });
+});
+
+describe('transport ingest result helpers', () => {
+  it('treats PROPOSE-only replies as successful and dedupes the same text', async () => {
+    const engine = createEngine();
+    const text = `===PROPOSE===\n- new memory prop-1: likes short meetings | tags: work | rationale: stated\n===END===`;
+    let lastIngestedText = '';
+
+    for (let i = 0; i < 2; i += 1) {
+      if (text === lastIngestedText) continue;
+      const result = await engine.ingestReplyWithFallback(text);
+      expect(isSuccessfulIngest(result)).toBe(true);
+      expect(shouldWarnRawQuestion(result)).toBe(false);
+      if (addedCount(result) > 0) lastIngestedText = text;
+    }
+
+    expect(engine.getPendingProposals()).toHaveLength(1);
+  });
+
+  it('treats ambient-only replies as successful', async () => {
+    const engine = createEngine();
+    const result = await engine.ingestReplyWithFallback(
+      `===AMBIENT===\n- text: feeling rushed | intensity: high\n===END===`,
+    );
+    expect(result.ambient).toBe(1);
+    expect(isSuccessfulIngest(result)).toBe(true);
+    expect(shouldWarnRawQuestion(result)).toBe(false);
   });
 });

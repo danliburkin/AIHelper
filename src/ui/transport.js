@@ -7,6 +7,29 @@
  * @param {() => void} onUpdate - called after any ingest or import so boards refresh
  * @returns {{ updateContextSpec: () => void, setStatus: (msg: string, kind?: string) => void, updatePromptPreview: () => void, onBoardsEdited: () => void }}
  */
+export function addedCount(result) {
+  return (
+    (result.memory || 0) +
+    (result.assumptions || 0) +
+    (result.facts || 0) +
+    (result.ambient || 0) +
+    (result.proposals || 0)
+  );
+}
+
+export function isSuccessfulIngest(result) {
+  return (
+    (result.memory || 0) + (result.assumptions || 0) + (result.facts || 0) > 0 ||
+    Boolean(result.hadStructuredBlocks) ||
+    (result.proposals || 0) > 0 ||
+    (result.ambient || 0) > 0
+  );
+}
+
+export function shouldWarnRawQuestion(result) {
+  return !isSuccessfulIngest(result) && !result.hadStructuredBlocks && (result.proposals || 0) === 0;
+}
+
 export function initTransport(refs, engine, onUpdate) {
   const {
     replyArea,
@@ -162,6 +185,7 @@ export function initTransport(refs, engine, onUpdate) {
     if (added.memory) parts.push(`${added.memory} memory`);
     if (added.assumptions) parts.push(`${added.assumptions} assumptions`);
     if (added.facts) parts.push(`${added.facts} facts`);
+    if (added.ambient) parts.push(`${added.ambient} ambient`);
     return parts.join(', ');
   }
 
@@ -188,7 +212,7 @@ export function initTransport(refs, engine, onUpdate) {
     }
 
     const result = await engine.ingestReplyWithFallback(text);
-    const total = result.memory + result.assumptions + result.facts;
+    const total = addedCount(result);
 
     if (total > 0) {
       // Record the turn snapshot BEFORE onUpdate() so the new turn card
@@ -209,7 +233,7 @@ export function initTransport(refs, engine, onUpdate) {
 
     onUpdate();
 
-    if (total === 0) {
+    if (shouldWarnRawQuestion(result)) {
       setStatus(
         'This reply has no structured blocks — you likely pasted your raw question into the chatbot instead of the decorated prompt. Copy the decorated prompt above and send that, then paste the new reply here.',
         'warning',
@@ -219,12 +243,19 @@ export function initTransport(refs, engine, onUpdate) {
       return;
     }
 
+    if (!isSuccessfulIngest(result)) {
+      setStatus('No record items or proposals were found in this reply.', 'warning');
+      highlightStep(2);
+      return;
+    }
+
     const proposalSuffix = result.proposals
       ? ` · ${result.proposals} pending proposal${result.proposals === 1 ? '' : 's'} — review above the reply pane.`
       : '';
-    setStatus(`Parsed ${formatAdded(result)} into boards.${proposalSuffix}`, 'success');
+    const parsed = formatAdded(result) || '0 board items';
+    setStatus(`Parsed ${parsed} into boards.${proposalSuffix}`, 'success');
     highlightStep(4);
-    lastIngestedText = text;
+    if (total > 0) lastIngestedText = text;
   }
 
   replyArea.addEventListener('paste', () => {

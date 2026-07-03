@@ -10,6 +10,8 @@
  * produce the canonical shape used by tests, persistence (R2), and the briefing assembler (R3).
  */
 
+import { newId } from './ids.js';
+
 export const STATUSES = Object.freeze(['open', 'active', 'done', 'dropped', 'revived']);
 
 export const KINDS = Object.freeze(['goal', 'fact', 'decision', 'task', 'open_question']);
@@ -135,7 +137,7 @@ export function applyRecordDefaults(item, board, parsedMeta = {}, hints = {}) {
 export function createAmbientRecord(input) {
   const now = new Date().toISOString();
   return {
-    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : randomId(),
+    id: newId(),
     kind: 'ambient',
     text: String(input.text || '').trim(),
     intensity: isValidIntensity(input.intensity) ? input.intensity : 'medium',
@@ -213,8 +215,4 @@ export function isVisiblyUntrusted(record) {
   if (!record) return false;
   if (record.provenance === 'stale_superseded') return true;
   return record.confidence === 'low';
-}
-
-function randomId() {
-  return 'r_' + Math.random().toString(36).slice(2, 10);
 }
