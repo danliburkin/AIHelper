@@ -7,6 +7,54 @@
  * @param {() => void} onUpdate - called after any ingest or import so boards refresh
  * @returns {{ updateContextSpec: () => void, setStatus: (msg: string, kind?: string) => void, updatePromptPreview: () => void, onBoardsEdited: () => void }}
  */
+
+/**
+ * True when the ingest parsed something meaningful — not the "you pasted your raw question" case.
+ * @param {{ hadStructuredBlocks?: boolean, proposals?: number, ambient?: number }} result
+ */
+export function isSuccessfulIngest(result) {
+  return (
+    Boolean(result.hadStructuredBlocks) ||
+    (result.proposals || 0) > 0 ||
+    (result.ambient || 0) > 0
+  );
+}
+
+function anythingAdded(result) {
+  return (
+    result.memory +
+      result.assumptions +
+      result.facts +
+      (result.ambient || 0) +
+      (result.proposals || 0) >
+    0
+  );
+}
+
+function formatAdded(result) {
+  const parts = [];
+  if (result.memory) parts.push(`${result.memory} memory`);
+  if (result.assumptions) parts.push(`${result.assumptions} assumptions`);
+  if (result.facts) parts.push(`${result.facts} facts`);
+  if (result.ambient) parts.push(`${result.ambient} ambient`);
+  return parts.join(', ');
+}
+
+function formatIngestSuccess(result) {
+  const parts = [];
+  const boardCount =
+    result.memory + result.assumptions + result.facts + (result.ambient || 0);
+  if (boardCount > 0) {
+    parts.push(`Parsed ${formatAdded(result)} into boards`);
+  }
+  if (result.proposals > 0) {
+    parts.push(
+      `${result.proposals} pending proposal${result.proposals === 1 ? '' : 's'} — review above the reply pane.`,
+    );
+  }
+  return parts.join(' · ');
+}
+
 export function initTransport(refs, engine, onUpdate) {
   const {
     replyArea,
@@ -157,14 +205,6 @@ export function initTransport(refs, engine, onUpdate) {
     return out;
   }
 
-  function formatAdded(added) {
-    const parts = [];
-    if (added.memory) parts.push(`${added.memory} memory`);
-    if (added.assumptions) parts.push(`${added.assumptions} assumptions`);
-    if (added.facts) parts.push(`${added.facts} facts`);
-    return parts.join(', ');
-  }
-
   // Tracking the last successfully ingested text protects against double-ingest
   // when both the paste event and the explicit Parse-reply click fire for the
   // same reply (which would otherwise create duplicate proposals).
@@ -188,9 +228,8 @@ export function initTransport(refs, engine, onUpdate) {
     }
 
     const result = await engine.ingestReplyWithFallback(text);
-    const total = result.memory + result.assumptions + result.facts;
 
-    if (total > 0) {
+    if (anythingAdded(result)) {
       // Record the turn snapshot BEFORE onUpdate() so the new turn card
       // appears in the very next render pass rather than waiting for some
       // later, unrelated state change to trigger a re-render.
@@ -199,17 +238,23 @@ export function initTransport(refs, engine, onUpdate) {
         boards.memory.filter((m) => !m.active).length +
         boards.facts.filter((f) => !f.active).length +
         boards.assumptions.filter((a) => !a.active).length;
-      engine.addTurn(taskInput.value.trim(), {
-        memory: result.memory,
-        facts: result.facts,
-        assumptions: result.assumptions,
-        ambient: result.ambient || 0,
-      }, revokedCount, text);
+      engine.addTurn(
+        taskInput.value.trim(),
+        {
+          memory: result.memory,
+          facts: result.facts,
+          assumptions: result.assumptions,
+          ambient: result.ambient || 0,
+          proposals: result.proposals || 0,
+        },
+        revokedCount,
+        text,
+      );
     }
 
     onUpdate();
 
-    if (total === 0) {
+    if (!isSuccessfulIngest(result)) {
       setStatus(
         'This reply has no structured blocks — you likely pasted your raw question into the chatbot instead of the decorated prompt. Copy the decorated prompt above and send that, then paste the new reply here.',
         'warning',
@@ -219,10 +264,7 @@ export function initTransport(refs, engine, onUpdate) {
       return;
     }
 
-    const proposalSuffix = result.proposals
-      ? ` · ${result.proposals} pending proposal${result.proposals === 1 ? '' : 's'} — review above the reply pane.`
-      : '';
-    setStatus(`Parsed ${formatAdded(result)} into boards.${proposalSuffix}`, 'success');
+    setStatus(formatIngestSuccess(result), 'success');
     highlightStep(4);
     lastIngestedText = text;
   }
