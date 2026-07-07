@@ -1,14 +1,40 @@
 import { buildContextSpec, buildRevocations, hasRevocations, buildRevocationAlert } from './contextSpec.js';
+import { buildBriefing } from './briefing.js';
 
-const BLOCK_FORMAT = `Use this exact block format at the end of your reply:
+const BLOCK_FORMAT = `Use this exact block format at the end of your reply.
+
+For every stateful item (memory / facts / assumptions) you MAY append, in any order, these optional trailing fields after the existing payload, each prefixed with " | ":
+  | status: <open | active | done | dropped | revived>
+  | confidence: <high | medium | low>
+  | provenance: <user_asserted | model_proposed_user_confirmed | inferred_from_tool | stale_superseded>
+  | tags: <comma-separated topic tags>
+
+If a field is omitted the app fills a safe default; never invent a value you cannot defend.
+
+Use the AMBIENT block ONLY for soft, non-lifecycle context (mood, tone, standing constraints — e.g. "burnt out by micromanaging boss"). Ambient items have NO status; they carry an intensity instead. Do not collapse a mood into a fact.
+
+If — AND ONLY IF — this turn produced MATERIAL changes to the longitudinal record (a goal completing, a plan being abandoned or superseded, a new commitment), append a ===PROPOSE=== block. Do NOT propose trivial rephrasings or restate things already true. A 20-minute session should yield a few proposals, not fifteen. Every line MUST end with " | rationale: <one short reason>" so the user knows why you proposed it. The user, not you, decides whether to commit each proposal.
+
+Proposal shapes:
+  - mark <existing_id> <new_status> | rationale: <reason>
+  - supersede <old_existing_id> with <new_existing_id> | rationale: <reason>
+  - new <board>: <text> | tags: <t1,t2> | rationale: <reason>
+  - tag <existing_id> <t1,t2,...> | rationale: <reason>
+  where <board> ∈ memory | facts | assumptions and <new_status> ∈ active | open | done | dropped | revived.
+  Use the ids exactly as they appear in the Briefing's "id=<...>" tokens.
 
 ===MEMORY===
-- <bullet>
+- <bullet> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
 ===ASSUMPTIONS===
-- assumption: <text> | reason: <text>
+- assumption: <text> | reason: <text> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
 ===FACTS===
-- type: retrieved | content: <text> | source: <url> | date: <date>
-- type: computed | content: <text>
+- type: retrieved | content: <text> | source: <url> | date: <date> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
+- type: computed | content: <text> [ | status: ... | confidence: ... | provenance: ... | tags: ... ]
+===AMBIENT===
+- text: <ambient note> | intensity: <low | medium | high> [ | tags: ... ]
+===PROPOSE===
+- mark <id> done | rationale: <reason>
+- new memory: <text> | tags: <t1,t2> | rationale: <reason>
 ===END===`;
 
 function composePrimeAssumptions(state) {
@@ -37,17 +63,19 @@ function composeTask(state) {
   }
 
   const task = state.originalTask || '(no task set)';
-  const contextSpec = buildContextSpec(state);
+  const briefing = buildBriefing(state, {
+    questionText: task,
+    lastActivityAt: state.lastActivityAt,
+  });
 
-  return `Perform the following task. Use the Context Spec below as binding constraints where provided.
+  return `${briefing.text}
+
+Perform the following task. Use the briefing above as binding context.
 
 ## Task
 """
 ${task}
 """
-
-## Context Spec
-${contextSpec}
 
 Answer the task fully, then append the blocks describing the assumptions and facts your answer rested on.
 
@@ -56,7 +84,10 @@ ${BLOCK_FORMAT}`;
 
 function composeRestart(state) {
   const task = state.originalTask || '(no task set)';
-  const contextSpec = buildContextSpec(state);
+  const briefing = buildBriefing(state, {
+    questionText: task,
+    lastActivityAt: state.lastActivityAt,
+  });
   const revocations = buildRevocations(state);
   const alert = hasRevocations(state) ? `${buildRevocationAlert(state)}\n\n` : '';
 
@@ -73,7 +104,7 @@ function composeRestart(state) {
 2. Every item in ===REVOKED_BY_USER_DO_NOT_USE=== and every "DELETE" line below is FORBIDDEN — remove them from your reasoning.
 3. If an assumption was revoked (unchecked), your new answer MUST NOT treat it as true. Change the answer accordingly.
 4. If memory was overridden, use only the "USE INSTEAD" wording; never the "DELETE/IGNORE" wording.
-5. Use ONLY the Corrected Context Spec as binding context. Ignore everything else from earlier in this conversation.
+5. Use ONLY the Briefing below as binding context. Ignore everything else from earlier in this conversation.
 6. Do not perform fresh retrieval — treat listed facts as the frozen evidence pool.
 
 ## Original task
@@ -81,8 +112,7 @@ function composeRestart(state) {
 ${task}
 """
 
-${revocationBlock}## Corrected Context Spec (authoritative — only these items apply)
-${contextSpec}
+${revocationBlock}${briefing.text}
 
 Write a completely NEW answer to the task, then append fresh blocks describing only the assumptions and facts this new answer rested on.
 

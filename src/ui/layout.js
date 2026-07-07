@@ -1,3 +1,10 @@
+/**
+ * Build the full app shell and return references to every interactive element.
+ * This is the only place DOM structure is defined; no logic lives here.
+ *
+ * @param {HTMLElement} root - the #app mount point
+ * @returns {Record<string, HTMLElement>} refs used by initTransport, initBoards, initProposals
+ */
 export function buildLayout(root) {
   root.replaceChildren();
 
@@ -39,6 +46,41 @@ export function buildLayout(root) {
     workflow.append(item);
   }
   header.append(workflow);
+
+  const conversationBar = document.createElement('div');
+  conversationBar.className = 'conversation-bar';
+  conversationBar.id = 'conversation-bar';
+
+  const conversationSelect = document.createElement('select');
+  conversationSelect.id = 'conversation-select';
+  conversationSelect.className = 'conversation-select';
+  conversationSelect.setAttribute('aria-label', 'Switch conversation');
+
+  const newConversationBtn = document.createElement('button');
+  newConversationBtn.type = 'button';
+  newConversationBtn.id = 'new-conversation-btn';
+  newConversationBtn.className = 'btn btn-ghost btn-small';
+  newConversationBtn.textContent = '+ New';
+
+  const renameConversationBtn = document.createElement('button');
+  renameConversationBtn.type = 'button';
+  renameConversationBtn.id = 'rename-conversation-btn';
+  renameConversationBtn.className = 'btn btn-ghost btn-small';
+  renameConversationBtn.textContent = 'Rename';
+
+  const deleteConversationBtn = document.createElement('button');
+  deleteConversationBtn.type = 'button';
+  deleteConversationBtn.id = 'delete-conversation-btn';
+  deleteConversationBtn.className = 'btn btn-ghost btn-small btn-danger';
+  deleteConversationBtn.textContent = 'Delete';
+
+  conversationBar.append(
+    conversationSelect,
+    newConversationBtn,
+    renameConversationBtn,
+    deleteConversationBtn,
+  );
+  header.append(conversationBar);
 
   const outbound = document.createElement('section');
   outbound.className = 'outbound-panel';
@@ -88,13 +130,22 @@ export function buildLayout(root) {
 
   outbound.append(taskRow, previewHeader, promptPreview, outboundActions);
 
+  const proposalsContainer = document.createElement('div');
+  proposalsContainer.id = 'proposals-container';
+  proposalsContainer.className = 'proposals-container';
+
   const main = document.createElement('main');
   main.className = 'app-main';
 
   const left = document.createElement('section');
   left.className = 'panel panel-reply';
+
+  const spiralContainer = document.createElement('div');
+  spiralContainer.id = 'spiral-container';
+  spiralContainer.className = 'spiral-container';
+
   const replyLabel = document.createElement('h2');
-  replyLabel.textContent = 'Chatbot reply';
+  replyLabel.textContent = 'Paste the next reply';
   const replyHint = document.createElement('p');
   replyHint.className = 'panel-hint';
   replyHint.textContent =
@@ -118,7 +169,7 @@ export function buildLayout(root) {
   ingestBtn.className = 'btn';
   ingestBtn.textContent = 'Parse reply';
   replyActions.append(pasteBtn, ingestBtn);
-  left.append(replyLabel, replyHint, replyArea, replyActions);
+  left.append(spiralContainer, replyLabel, replyHint, replyArea, replyActions);
 
   const right = document.createElement('section');
   right.className = 'panel panel-boards';
@@ -127,6 +178,7 @@ export function buildLayout(root) {
   const boardsContainer = document.createElement('div');
   boardsContainer.id = 'boards-container';
   boardsContainer.className = 'boards-container';
+
   right.append(boardsLabel, boardsContainer);
 
   main.append(left, right);
@@ -148,13 +200,31 @@ export function buildLayout(root) {
   contextSpec.id = 'context-spec';
   contextSpec.className = 'context-spec';
 
+  const recordViewLabel = document.createElement('h2');
+  recordViewLabel.textContent = 'Record view (longitudinal)';
+  recordViewLabel.className = 'record-view-label';
+  const recordView = document.createElement('div');
+  recordView.id = 'record-view';
+  recordView.className = 'record-view';
+
   const footerBar = document.createElement('div');
   footerBar.className = 'footer-bar';
   const exportBtn = document.createElement('button');
   exportBtn.type = 'button';
   exportBtn.id = 'export-btn';
   exportBtn.className = 'btn btn-ghost';
-  exportBtn.textContent = 'Export .md';
+  exportBtn.textContent = 'Export record';
+
+  const importBtn = document.createElement('button');
+  importBtn.type = 'button';
+  importBtn.id = 'import-btn';
+  importBtn.className = 'btn btn-ghost';
+  importBtn.textContent = 'Import record';
+  const importInput = document.createElement('input');
+  importInput.type = 'file';
+  importInput.id = 'import-input';
+  importInput.accept = '.md,.markdown,.json,.txt,text/markdown,application/json,text/plain';
+  importInput.hidden = true;
 
   const status = document.createElement('p');
   status.id = 'status';
@@ -168,10 +238,18 @@ export function buildLayout(root) {
   retryCopyBtn.textContent = 'Copy decorated prompt';
   retryCopyBtn.hidden = true;
 
-  footerBar.append(exportBtn, retryCopyBtn, status);
-  footer.append(contextLabel, contextSpec, revocationsLabel, revocationsPreview, footerBar);
+  footerBar.append(exportBtn, importBtn, importInput, retryCopyBtn, status);
+  footer.append(
+    recordViewLabel,
+    recordView,
+    contextLabel,
+    contextSpec,
+    revocationsLabel,
+    revocationsPreview,
+    footerBar,
+  );
 
-  shell.append(header, outbound, main, footer);
+  shell.append(header, outbound, proposalsContainer, main, footer);
   root.append(shell);
 
   return {
@@ -188,6 +266,15 @@ export function buildLayout(root) {
     copyBtn,
     retryCopyBtn,
     exportBtn,
+    importBtn,
+    importInput,
+    recordView,
+    proposalsContainer,
+    spiralContainer,
+    conversationSelect,
+    newConversationBtn,
+    renameConversationBtn,
+    deleteConversationBtn,
     status,
     workflowSteps: workflow,
   };

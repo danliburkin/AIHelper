@@ -1,3 +1,12 @@
+/**
+ * Wire clipboard transport: copy decorated prompt, paste/ingest chatbot reply,
+ * live prompt preview, export/import record, and status messages.
+ *
+ * @param {Record<string, HTMLElement>} refs - DOM refs returned by buildLayout()
+ * @param {ReturnType<import('../engine/engine.js').createEngine>} engine
+ * @param {() => void} onUpdate - called after any ingest or import so boards refresh
+ * @returns {{ updateContextSpec: () => void, setStatus: (msg: string, kind?: string) => void, updatePromptPreview: () => void, onBoardsEdited: () => void }}
+ */
 export function initTransport(refs, engine, onUpdate) {
   const {
     replyArea,
@@ -12,6 +21,9 @@ export function initTransport(refs, engine, onUpdate) {
     copyBtn,
     retryCopyBtn,
     exportBtn,
+    importBtn,
+    importInput,
+    recordView,
     status,
     workflowSteps,
   } = refs;
@@ -82,7 +94,67 @@ export function initTransport(refs, engine, onUpdate) {
 
   function updateContextSpec() {
     contextSpec.textContent = engine.buildContextSpec();
+    updateRecordView();
     updatePromptPreview();
+  }
+
+  function updateRecordView() {
+    if (!recordView) return;
+    const markdown = engine.renderRecordMarkdown();
+    recordView.replaceChildren();
+    for (const block of markdownBlocks(markdown)) {
+      recordView.append(block);
+    }
+  }
+
+  function markdownBlocks(md) {
+    const out = [];
+    let listEl = null;
+    for (const rawLine of md.split('\n')) {
+      const line = rawLine.trimEnd();
+      if (line.startsWith('# ')) {
+        listEl = null;
+        const h = document.createElement('h3');
+        h.className = 'record-h1';
+        h.textContent = line.slice(2);
+        out.push(h);
+      } else if (line.startsWith('## ')) {
+        listEl = null;
+        const h = document.createElement('h4');
+        h.className = 'record-h2';
+        h.textContent = line.slice(3);
+        out.push(h);
+      } else if (line.startsWith('- ')) {
+        if (!listEl) {
+          listEl = document.createElement('ul');
+          listEl.className = 'record-list';
+          out.push(listEl);
+        }
+        const li = document.createElement('li');
+        li.textContent = line.slice(2);
+        listEl.append(li);
+      } else if (line.startsWith('> ')) {
+        listEl = null;
+        const blockquote = document.createElement('blockquote');
+        blockquote.className = 'record-quote';
+        blockquote.textContent = line.slice(2);
+        out.push(blockquote);
+      } else if (line.startsWith('_') && line.endsWith('_')) {
+        listEl = null;
+        const small = document.createElement('p');
+        small.className = 'record-muted';
+        small.textContent = line.slice(1, -1);
+        out.push(small);
+      } else if (line === '') {
+        listEl = null;
+      } else {
+        listEl = null;
+        const p = document.createElement('p');
+        p.textContent = line;
+        out.push(p);
+      }
+    }
+    return out;
   }
 
   function formatAdded(added) {
@@ -93,9 +165,18 @@ export function initTransport(refs, engine, onUpdate) {
     return parts.join(', ');
   }
 
+  // Tracking the last successfully ingested text protects against double-ingest
+  // when both the paste event and the explicit Parse-reply click fire for the
+  // same reply (which would otherwise create duplicate proposals).
+  let lastIngestedText = '';
+
   async function ingestFromText(text) {
     if (!text.trim()) {
       setStatus('Paste the chatbot reply in the box on the left.', 'warning');
+      return;
+    }
+    if (text === lastIngestedText) {
+      // Already ingested this exact reply — silent no-op.
       return;
     }
 
@@ -107,9 +188,26 @@ export function initTransport(refs, engine, onUpdate) {
     }
 
     const result = await engine.ingestReplyWithFallback(text);
-    onUpdate();
-
     const total = result.memory + result.assumptions + result.facts;
+
+    if (total > 0) {
+      // Record the turn snapshot BEFORE onUpdate() so the new turn card
+      // appears in the very next render pass rather than waiting for some
+      // later, unrelated state change to trigger a re-render.
+      const boards = engine.getBoards();
+      const revokedCount =
+        boards.memory.filter((m) => !m.active).length +
+        boards.facts.filter((f) => !f.active).length +
+        boards.assumptions.filter((a) => !a.active).length;
+      engine.addTurn(taskInput.value.trim(), {
+        memory: result.memory,
+        facts: result.facts,
+        assumptions: result.assumptions,
+        ambient: result.ambient || 0,
+      }, revokedCount, text);
+    }
+
+    onUpdate();
 
     if (total === 0) {
       setStatus(
@@ -121,8 +219,12 @@ export function initTransport(refs, engine, onUpdate) {
       return;
     }
 
-    setStatus(`Parsed ${formatAdded(result)} into boards.`, 'success');
+    const proposalSuffix = result.proposals
+      ? ` · ${result.proposals} pending proposal${result.proposals === 1 ? '' : 's'} — review above the reply pane.`
+      : '';
+    setStatus(`Parsed ${formatAdded(result)} into boards.${proposalSuffix}`, 'success');
     highlightStep(4);
+    lastIngestedText = text;
   }
 
   replyArea.addEventListener('paste', () => {
@@ -175,16 +277,43 @@ export function initTransport(refs, engine, onUpdate) {
   retryCopyBtn.addEventListener('click', copyToChatbot);
 
   exportBtn.addEventListener('click', () => {
-    const markdown = engine.buildContextSpec();
+    const markdown = engine.exportRecordMarkdown();
     const blob = new Blob([markdown], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'context-spec.md';
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    link.download = `context-lens-record-${stamp}.md`;
     link.click();
     URL.revokeObjectURL(url);
-    setStatus('Exported context-spec.md', 'success');
+    setStatus('Exported the full record (markdown + embedded JSON).', 'success');
   });
+
+  if (importBtn && importInput) {
+    importBtn.addEventListener('click', () => {
+      importInput.click();
+    });
+
+    importInput.addEventListener('change', async () => {
+      const file = importInput.files && importInput.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const result = engine.importRecord(text);
+        resetReplyState();
+        onUpdate();
+        const totals = `${result.memory} memory, ${result.facts} facts, ${result.assumptions} assumptions, ${result.ambient} ambient`;
+        const when = result.exported_at ? ` (exported ${result.exported_at})` : '';
+        setStatus(`Imported record: ${totals}${when}.`, 'success');
+        taskInput.value = result.originalTask || '';
+        updatePromptPreview();
+      } catch (err) {
+        setStatus(`Import failed: ${err.message}`, 'warning');
+      } finally {
+        importInput.value = '';
+      }
+    });
+  }
 
   function highlightStep(step) {
     if (!workflowSteps) return;
@@ -193,10 +322,22 @@ export function initTransport(refs, engine, onUpdate) {
     });
   }
 
+  /**
+   * Clear the "paste the next reply" box and the ingest dedupe tracker.
+   * Call this whenever the engine's state is swapped out from under the UI
+   * by something other than the normal ingest flow — switching/creating a
+   * conversation, rewinding to a turn, or importing a record — so a reply
+   * pasted for a different context does not linger in the box.
+   */
+  function resetReplyState() {
+    replyArea.value = '';
+    lastIngestedText = '';
+  }
+
   replyArea.addEventListener('focus', () => highlightStep(3));
 
   updatePromptPreview();
   setStatus('Type your question — the decorated prompt updates automatically. One button: Copy to chatbot.');
 
-  return { updateContextSpec, setStatus, updatePromptPreview, onBoardsEdited };
+  return { updateContextSpec, setStatus, updatePromptPreview, onBoardsEdited, resetReplyState };
 }

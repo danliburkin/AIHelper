@@ -19,35 +19,34 @@ describe('parseReplyBlocks', () => {
   it('parses a well-formed reply', () => {
     const result = parseReplyBlocks(WELL_FORMED);
 
-    expect(result.memory).toEqual([
+    expect(result.memory.map((m) => m.text)).toEqual([
       'User prefers concise explanations',
       'Prior discussion mentioned vector databases',
     ]);
+    expect(result.memory.every((m) => m.meta && typeof m.meta === 'object')).toBe(true);
 
-    expect(result.assumptions).toEqual([
-      {
-        statement: 'RAG not explained',
-        reason: 'treated you as an experienced developer',
-      },
-      {
-        statement: 'Python stack',
-        reason: 'earlier code samples were in Python',
-      },
-    ]);
+    expect(result.assumptions).toHaveLength(2);
+    expect(result.assumptions[0].statement).toBe('RAG not explained');
+    expect(result.assumptions[0].reason).toBe('treated you as an experienced developer');
+    expect(result.assumptions[1].statement).toBe('Python stack');
+    expect(result.assumptions[1].reason).toBe('earlier code samples were in Python');
 
     expect(result.facts).toHaveLength(2);
-    expect(result.facts[0]).toEqual({
+    expect(result.facts[0]).toMatchObject({
       type: 'retrieved',
       content: 'Elasticsearch 8 supports dense vectors',
       sourceUrl: 'https://example.com/es',
       sourceDate: '2024-01-15',
     });
-    expect(result.facts[1]).toEqual({
+    expect(result.facts[1]).toMatchObject({
       type: 'computed',
       content: 'Three retrieval strategies were compared',
       sourceUrl: undefined,
       sourceDate: undefined,
     });
+
+    expect(Array.isArray(result.ambient)).toBe(true);
+    expect(result.ambient).toEqual([]);
   });
 
   it('handles missing sections gracefully', () => {
@@ -56,9 +55,10 @@ describe('parseReplyBlocks', () => {
 ===END===`;
 
     const result = parseReplyBlocks(partial);
-    expect(result.memory).toEqual(['Only memory here']);
+    expect(result.memory.map((m) => m.text)).toEqual(['Only memory here']);
     expect(result.assumptions).toEqual([]);
     expect(result.facts).toEqual([]);
+    expect(result.ambient).toEqual([]);
   });
 
   it('ignores malformed lines', () => {
@@ -69,9 +69,9 @@ describe('parseReplyBlocks', () => {
 ===END===`;
 
     const result = parseReplyBlocks(malformed);
-    expect(result.assumptions).toEqual([
-      { statement: 'Valid one', reason: 'valid reason' },
-    ]);
+    expect(result.assumptions).toHaveLength(1);
+    expect(result.assumptions[0].statement).toBe('Valid one');
+    expect(result.assumptions[0].reason).toBe('valid reason');
   });
 
   it('handles extra whitespace and blank lines', () => {
@@ -96,13 +96,10 @@ describe('parseReplyBlocks', () => {
   });
 
   it('returns empty arrays for empty or invalid input', () => {
-    expect(parseReplyBlocks('')).toEqual({ memory: [], assumptions: [], facts: [] });
-    expect(parseReplyBlocks(null)).toEqual({ memory: [], assumptions: [], facts: [] });
-    expect(parseReplyBlocks('no blocks here')).toEqual({
-      memory: [],
-      assumptions: [],
-      facts: [],
-    });
+    const empty = { memory: [], assumptions: [], facts: [], ambient: [] };
+    expect(parseReplyBlocks('')).toEqual(empty);
+    expect(parseReplyBlocks(null)).toEqual(empty);
+    expect(parseReplyBlocks('no blocks here')).toEqual(empty);
   });
 
   it('detects structured blocks', () => {
