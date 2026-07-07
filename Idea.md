@@ -76,7 +76,7 @@ The serialized, human-edited context block (called the "md file" in discussion) 
 - **B1 (build first): clipboard.** User copies the model's reply into the tool; the engine parses it into panels; user edits; the engine composes the next prompt; user copies it back. No DOM access, maximally robust, simplest form factor.
 - **B2 (later): browser extension.** A content script reads the live reply node and writes the input box directly (assignment, not paste), and detects when streaming finishes. Adds capability B1 cannot have, at the cost of coupling to the page. Built in a fresh phase; the engine is unchanged.
 
-The engine must never assume clipboard. It exposes `ingestReply(text)` and `getComposedPrompt() -> text`; B1 wires these to copy-paste, B2 later wires the same two to DOM read/write.
+The engine must never assume clipboard. It exposes `ingestReplyWithFallback(text)` and `getComposedPrompt() -> text`; B1 wires these to copy-paste, B2 later wires the same two to DOM read/write.
 
 ## Market position (deferred, noted for later)
 

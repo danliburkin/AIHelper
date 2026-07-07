@@ -139,9 +139,8 @@ Engine never touches clipboard, localStorage, or DOM directly — `src/ui/conver
 
 ```js
 // Ingest
-ingestReply(text)
 ingestReplyWithFallback(text)
-  // → { memory, assumptions, facts, ambient, proposals, hadStructuredBlocks, usedNano }
+  // → { memory, assumptions, facts, ambient, proposals, hadStructuredBlocks, structuredParseEmpty, usedNano }
 
 // Boards
 getBoards()           // → { memory[], facts[], assumptions[], ambient[] }
@@ -456,7 +455,7 @@ If starting from this checkpoint, the codebase is fully working, all tests pass,
 
 1. If boards stay empty after paste, the user sent the **raw question** instead of the **decorated prompt**.
 2. After edits, verify footer **Will tell chatbot to DELETE** is populated before copying.
-3. The transport seam (`ingestReply` / `getComposedPrompt`) is stable — R1–R5 sit **behind** the engine, not in the transport.
+3. The transport seam (`ingestReplyWithFallback` / `getComposedPrompt`) is stable — R1–R5 sit **behind** the engine, not in the transport.
 4. The briefing uses `id=<uuid>` tokens in the emitted text so the model can reference specific records in `===PROPOSE===` proposals. The tag match falls back to the whole active pool if no tags match — never silent empty briefing.
 5. `requiresIndividualConfirm=true` items must be accepted one at a time; "Accept all (safe)" deliberately skips them.
 6. **Multi-conversation state lives in `localStorage`, not in the engine's in-memory state alone.** The engine object is a singleton created once in `main.js`; switching conversations calls `engine.restoreSnapshot()` / `engine.reset()` to swap its internal state in place — it does **not** create a new engine instance. Any new UI module that reads engine state on init (rather than on every render) will break across conversation switches; always read fresh from `engine.getBoards()` / `engine.getTurns()` / etc. inside a `render()` function.

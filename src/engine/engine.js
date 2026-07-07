@@ -157,27 +157,23 @@ export function createEngine() {
   }
 
   return {
-    ingestReply(text) {
-      clearProposalIdMap();
-      const added = appendParsed(state, parseReplyBlocks(text));
-      const proposalsAdded = harvestProposals(text);
-      if (added.memory + added.assumptions + added.facts + added.ambient > 0) {
-        state.lastActivityAt = nowIso();
-      }
-      return { ...added, proposals: proposalsAdded };
-    },
-
     async ingestReplyWithFallback(text) {
       clearProposalIdMap();
       let parsed = parseReplyBlocks(text);
-      const usedNano =
+      const structuredParseEmpty =
         parsed.memory.length === 0 &&
         parsed.assumptions.length === 0 &&
         parsed.facts.length === 0 &&
         (parsed.ambient || []).length === 0;
 
-      if (usedNano) {
+      let usedNano = false;
+      if (structuredParseEmpty) {
         parsed = await parseWithNanoFallback(text);
+        usedNano =
+          parsed.memory.length > 0 ||
+          parsed.assumptions.length > 0 ||
+          parsed.facts.length > 0 ||
+          (parsed.ambient || []).length > 0;
       }
 
       const added = appendParsed(state, parsed);
@@ -191,6 +187,7 @@ export function createEngine() {
         ...added,
         proposals: proposalsAdded,
         hadStructuredBlocks: hasStructuredBlocks(text),
+        structuredParseEmpty,
         usedNano,
       };
     },
