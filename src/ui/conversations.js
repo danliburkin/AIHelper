@@ -1,32 +1,64 @@
-import * as storage from '../engine/storage.js';
 import { showPromptModal, showConfirmModal } from './modal.js';
 
 const SAVE_DEBOUNCE_MS = 500;
 
+function listFingerprint(conversations) {
+  return conversations.map((c) => `${c.id}|${c.title}|${c.updatedAt}`).join('\n');
+}
+
 /**
- * Multi-conversation controller. Wires the conversation-switcher dropdown
- * and New/Rename/Delete buttons, and drives auto-save to localStorage.
+ * Multi-conversation controller. Wires the conversation-switcher dropdown,
+ * sync-state indicator, and New/Rename/Delete buttons against a storage adapter.
  *
- * On init, restores the last-active conversation (or the newest one, or
- * creates a blank conversation if none exist yet) into the shared engine
- * instance. The engine object identity never changes — only its internal
- * state is swapped via engine.restoreSnapshot() / engine.reset(), so every
- * other UI module (boards, transport, proposals, spiral) keeps working
- * without re-wiring.
- *
- * @param {Record<string, HTMLElement>} refs - layout refs (conversationSelect, new/rename/delete buttons)
+ * @param {Record<string, HTMLElement>} refs
  * @param {ReturnType<import('../engine/engine.js').createEngine>} engine
- * @param {() => void} onSwitch - called after loading a different conversation's state
- * @returns {{ scheduleSave: () => void, flushSave: () => void, getActiveId: () => string|null }}
+ * @param {() => void} onSwitch
+ * @param {ReturnType<import('../storage/adapter.js').makeStorage>} storage
  */
-export function initConversations(refs, engine, onSwitch) {
-  const { conversationSelect, newConversationBtn, renameConversationBtn, deleteConversationBtn } = refs;
+export function initConversations(refs, engine, onSwitch, storage) {
+  const {
+    conversationSelect,
+    syncStatus,
+    newConversationBtn,
+    renameConversationBtn,
+    deleteConversationBtn,
+  } = refs;
 
   let activeId = null;
   let saveTimer = null;
+  let saveInFlight = null;
+  let lastListFingerprint = '';
 
-  function renderSelect() {
-    const list = storage.listConversations();
+  function setSyncStatus(kind) {
+    if (!syncStatus) return;
+    syncStatus.classList.remove('sync-saving', 'sync-saved', 'sync-failed');
+    if (kind === 'saving') {
+      syncStatus.textContent = 'saving…';
+      syncStatus.classList.add('sync-saving');
+    } else if (kind === 'saved') {
+      syncStatus.textContent = 'saved';
+      syncStatus.classList.add('sync-saved');
+    } else if (kind === 'failed') {
+      syncStatus.textContent = 'sync failed — export your record';
+      syncStatus.classList.add('sync-failed');
+    } else {
+      syncStatus.textContent = '';
+    }
+  }
+
+  async function renderSelectIfChanged(force = false) {
+    const listResult = await storage.listConversations();
+    const list = listResult.ok ? listResult.conversations : [];
+    const fingerprint = listFingerprint(list);
+
+    if (!force && fingerprint === lastListFingerprint && conversationSelect.options.length > 0) {
+      for (const option of conversationSelect.options) {
+        option.selected = option.value === activeId;
+      }
+      return;
+    }
+
+    lastListFingerprint = fingerprint;
     conversationSelect.replaceChildren();
     for (const conv of list) {
       const option = document.createElement('option');
@@ -37,69 +69,86 @@ export function initConversations(refs, engine, onSwitch) {
     }
   }
 
-  function flushSave() {
+  async function flushSave() {
     if (saveTimer) {
       clearTimeout(saveTimer);
       saveTimer = null;
     }
     if (!activeId) return;
-    storage.saveConversation(activeId, engine.exportSnapshot());
-    renderSelect();
+
+    setSyncStatus('saving');
+    const savePromise = storage.saveConversation(activeId, engine.exportSnapshot());
+    saveInFlight = savePromise;
+
+    const result = await savePromise;
+    if (saveInFlight !== savePromise) return;
+
+    if (result.ok) {
+      setSyncStatus('saved');
+      await renderSelectIfChanged();
+    } else {
+      setSyncStatus('failed');
+    }
   }
 
   function scheduleSave() {
     if (!activeId) return;
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(flushSave, SAVE_DEBOUNCE_MS);
+    saveTimer = setTimeout(() => {
+      void flushSave();
+    }, SAVE_DEBOUNCE_MS);
   }
 
-  function loadInto(id) {
-    const snapshot = storage.loadConversation(id);
-    if (snapshot) {
-      engine.restoreSnapshot(snapshot);
+  async function loadInto(id) {
+    const loaded = await storage.loadConversation(id);
+    if (loaded.ok && loaded.snapshot) {
+      engine.restoreSnapshot(loaded.snapshot);
     } else {
       engine.reset();
     }
     activeId = id;
-    storage.setActiveConversationId(id);
+    await storage.setActiveConversationId(id);
   }
 
-  function switchTo(id) {
+  async function switchTo(id) {
     if (id === activeId) return;
-    flushSave();
-    loadInto(id);
-    renderSelect();
+    await flushSave();
+    await loadInto(id);
+    await renderSelectIfChanged(true);
     onSwitch();
   }
 
-  /**
-   * Shared logic for "start a blank conversation". `notify: false` is used
-   * only during bootstrap (init()), before the rest of the UI (boards,
-   * transport, proposals, spiral) exists — calling onSwitch() at that point
-   * would reference not-yet-initialized consts in main.js.
-   */
-  function createBlankConversation(notify) {
-    flushSave();
+  async function createBlankConversation(notify) {
+    await flushSave();
     const id = storage.createConversationId();
     engine.reset();
-    storage.saveConversation(id, engine.exportSnapshot(), 'New conversation');
+    const saved = await storage.saveConversation(id, engine.exportSnapshot(), 'New conversation');
+    if (!saved.ok) setSyncStatus('failed');
+    else setSyncStatus('saved');
     activeId = id;
-    storage.setActiveConversationId(id);
-    renderSelect();
+    await storage.setActiveConversationId(id);
+    await renderSelectIfChanged(true);
     if (notify) onSwitch();
   }
 
-  function createNew() {
-    createBlankConversation(true);
+  async function createNew() {
+    await createBlankConversation(true);
   }
 
   async function rename() {
     if (!activeId) return;
-    const current = storage.listConversations().find((c) => c.id === activeId);
+    const listResult = await storage.listConversations();
+    const current = listResult.ok
+      ? listResult.conversations.find((c) => c.id === activeId)
+      : null;
     const title = await showPromptModal('Rename conversation:', current?.title || '');
     if (title === null || !title.trim()) return;
-    storage.renameConversation(activeId, title.trim());
-    renderSelect();
+    const result = await storage.renameConversation(activeId, title.trim());
+    if (!result.ok) {
+      setSyncStatus('failed');
+      return;
+    }
+    await renderSelectIfChanged(true);
   }
 
   async function remove() {
@@ -107,41 +156,58 @@ export function initConversations(refs, engine, onSwitch) {
     const ok = await showConfirmModal('Delete this conversation? This cannot be undone.');
     if (!ok) return;
 
-    storage.deleteConversation(activeId);
-    const remaining = storage.listConversations();
+    const deleted = await storage.deleteConversation(activeId);
+    if (!deleted.ok) {
+      setSyncStatus('failed');
+      return;
+    }
+
+    const listResult = await storage.listConversations();
+    const remaining = listResult.ok ? listResult.conversations : [];
     if (remaining.length > 0) {
-      loadInto(remaining[0].id);
-      renderSelect();
+      await loadInto(remaining[0].id);
+      await renderSelectIfChanged(true);
       onSwitch();
     } else {
-      createNew();
+      await createNew();
     }
   }
 
   conversationSelect.addEventListener('change', () => {
-    if (conversationSelect.value) switchTo(conversationSelect.value);
+    if (conversationSelect.value) void switchTo(conversationSelect.value);
   });
-  newConversationBtn.addEventListener('click', createNew);
-  renameConversationBtn.addEventListener('click', rename);
-  deleteConversationBtn.addEventListener('click', remove);
+  newConversationBtn.addEventListener('click', () => {
+    void createNew();
+  });
+  renameConversationBtn.addEventListener('click', () => {
+    void rename();
+  });
+  deleteConversationBtn.addEventListener('click', () => {
+    void remove();
+  });
 
-  window.addEventListener('beforeunload', flushSave);
+  window.addEventListener('beforeunload', () => {
+    void flushSave();
+  });
 
-  function init() {
-    const existing = storage.listConversations();
+  async function init() {
+    const listResult = await storage.listConversations();
+    const existing = listResult.ok ? listResult.conversations : [];
 
     if (existing.length === 0) {
-      createBlankConversation(false);
+      await createBlankConversation(false);
       return;
     }
 
-    const lastActive = storage.getActiveConversationId();
+    const activeResult = await storage.getActiveConversationId();
+    const lastActive = activeResult.ok ? activeResult.id : null;
     const targetId = existing.some((c) => c.id === lastActive) ? lastActive : existing[0].id;
-    loadInto(targetId);
-    renderSelect();
+    await loadInto(targetId);
+    await renderSelectIfChanged(true);
+    setSyncStatus('saved');
   }
 
-  init();
+  void init();
 
   return {
     scheduleSave,

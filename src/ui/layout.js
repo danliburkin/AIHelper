@@ -74,8 +74,14 @@ export function buildLayout(root) {
   deleteConversationBtn.className = 'btn btn-ghost btn-small btn-danger';
   deleteConversationBtn.textContent = 'Delete';
 
+  const syncStatus = document.createElement('span');
+  syncStatus.id = 'sync-status';
+  syncStatus.className = 'sync-status';
+  syncStatus.setAttribute('aria-live', 'polite');
+
   conversationBar.append(
     conversationSelect,
+    syncStatus,
     newConversationBtn,
     renameConversationBtn,
     deleteConversationBtn,
@@ -272,6 +278,7 @@ export function buildLayout(root) {
     proposalsContainer,
     spiralContainer,
     conversationSelect,
+    syncStatus,
     newConversationBtn,
     renameConversationBtn,
     deleteConversationBtn,

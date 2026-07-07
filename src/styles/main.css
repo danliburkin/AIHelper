@@ -191,6 +191,26 @@ body {
   box-shadow: var(--focus-ring);
 }
 
+.sync-status {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  min-width: 5rem;
+}
+
+.sync-status.sync-saving {
+  color: var(--text-muted);
+}
+
+.sync-status.sync-saved {
+  color: var(--accent-dim);
+}
+
+.sync-status.sync-failed {
+  color: var(--danger);
+  max-width: 220px;
+}
+
 .btn-danger {
   color: #ff5d4f;
   border-color: #ff5d4f;

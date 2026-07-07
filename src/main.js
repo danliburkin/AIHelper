@@ -6,10 +6,16 @@ import { initProposals } from './ui/proposals.js';
 import { initSpiral } from './ui/spiral.js';
 import { initConversations } from './ui/conversations.js';
 import { isNanoAvailable } from './engine/nano.js';
+import { makeStorage, pickStorageKind } from './storage/adapter.js';
 
 const engine = createEngine();
 const root = document.getElementById('app');
 const refs = buildLayout(root);
+
+const hasBackend = Boolean(
+  import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY,
+);
+const storage = makeStorage(pickStorageKind({ signedIn: false, hasBackend }));
 
 function syncQuestionInputFromEngine() {
   refs.taskInput.value = engine.getOriginalTask();
@@ -37,7 +43,7 @@ const conversations = initConversations(refs, engine, () => {
   syncQuestionInputFromEngine();
   transport.resetReplyState();
   refreshAll();
-});
+}, storage);
 
 syncQuestionInputFromEngine();
 
