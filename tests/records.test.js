@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { parseReplyBlocks, extractTrailingMeta } from '../src/engine/parser.js';
 import { createEngine } from '../src/engine/engine.js';
 import {
@@ -255,5 +255,54 @@ describe('R1 toStatefulRecord canonical shape', () => {
     expect(rec.board).toBe('memory');
     expect(rec.text).toBe('foo');
     expect(rec.tags).toEqual(['a']);
+  });
+});
+
+describe('ingestReplyWithFallback — parse metadata', () => {
+  it('reports structuredParseEmpty when structured blocks are absent', async () => {
+    const engine = createEngine();
+    const result = await engine.ingestReplyWithFallback('plain chat answer with no blocks');
+    expect(result.structuredParseEmpty).toBe(true);
+    expect(result.usedNano).toBe(false);
+  });
+
+  it('reports structuredParseEmpty false when structured blocks parse', async () => {
+    const engine = createEngine();
+    const result = await engine.ingestReplyWithFallback(`===MEMORY===
+- item
+===END===`);
+    expect(result.structuredParseEmpty).toBe(false);
+    expect(result.usedNano).toBe(false);
+  });
+
+  it('reports usedNano only when Nano fallback produces items', async () => {
+    const nano = await import('../src/engine/nano.js');
+    const spy = vi.spyOn(nano, 'parseWithNanoFallback').mockResolvedValue({
+      memory: ['from nano'],
+      assumptions: [],
+      facts: [],
+      ambient: [],
+    });
+    const engine = createEngine();
+    const result = await engine.ingestReplyWithFallback('unstructured blob');
+    expect(result.structuredParseEmpty).toBe(true);
+    expect(result.usedNano).toBe(true);
+    expect(result.memory).toBe(1);
+    spy.mockRestore();
+  });
+
+  it('structuredParseEmpty with Nano producing nothing leaves usedNano false', async () => {
+    const nano = await import('../src/engine/nano.js');
+    const spy = vi.spyOn(nano, 'parseWithNanoFallback').mockResolvedValue({
+      memory: [],
+      assumptions: [],
+      facts: [],
+      ambient: [],
+    });
+    const engine = createEngine();
+    const result = await engine.ingestReplyWithFallback('unstructured blob');
+    expect(result.structuredParseEmpty).toBe(true);
+    expect(result.usedNano).toBe(false);
+    spy.mockRestore();
   });
 });
