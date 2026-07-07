@@ -64,6 +64,21 @@ describe('R4 parseProposals', () => {
     const text = withProposals(`- mark x bogus | rationale: nope`);
     expect(parseProposals(text)).toEqual([]);
   });
+
+  it('captures optional prop-N local id on new proposals', () => {
+    const text = `===PROPOSE===
+- new memory prop-1: User committed to leaving | tags: career | rationale: explicit
+===END===`;
+    const proposals = parseProposals(text);
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]).toMatchObject({
+      type: 'new',
+      board: 'memory',
+      local_id: 'prop-1',
+      text: 'User committed to leaving',
+      tags: ['career'],
+    });
+  });
 });
 
 describe('R4 — high-impact annotation', () => {
@@ -300,6 +315,104 @@ describe('R4 — proposals survive nothing if there is no PROPOSE block', () => 
   });
 });
 
+describe('M0.3 — prop- local id resolution', () => {
+  it('new with prop- id then supersede referencing it succeeds when accepted one at a time', async () => {
+    const engine = createEngine();
+    await engine.ingestReplyWithFallback(`===MEMORY===
+- old fact | tags: career
+===END===`);
+    const oldId = engine.getBoards().memory[0].id;
+
+    await engine.ingestReplyWithFallback(`===PROPOSE===
+- new memory prop-1: Replacement commitment | tags: career | rationale: user committed
+- supersede ${oldId} with prop-1 | rationale: replaced by new commitment
+===END===`);
+
+    const pending = engine.getPendingProposals();
+    const newProposal = pending.find((p) => p.type === 'new');
+    const supersedeProposal = pending.find((p) => p.type === 'supersede');
+    expect(newProposal.local_id).toBe('prop-1');
+
+    const first = engine.acceptProposal(newProposal.id);
+    expect(first.applied).toBe(true);
+
+    const second = engine.acceptProposal(supersedeProposal.id);
+    expect(second.applied).toBe(true);
+
+    const after = engine.getBoards().memory;
+    const oldAfter = after.find((m) => m.id === oldId);
+    const newAfter = after.find((m) => m.committedText === 'Replacement commitment');
+    expect(oldAfter.provenance).toBe('stale_superseded');
+    expect(newAfter.links).toEqual(
+      expect.arrayContaining([expect.objectContaining({ rel: 'supersedes', target_id: oldId })]),
+    );
+  });
+
+  it('supersede referencing an unaccepted prop- id returns applied:false with a clear reason', async () => {
+    const engine = createEngine();
+    await engine.ingestReplyWithFallback(`===MEMORY===
+- old fact
+===END===`);
+    const oldId = engine.getBoards().memory[0].id;
+
+    await engine.ingestReplyWithFallback(`===PROPOSE===
+- new memory prop-1: Replacement | tags: career | rationale: new
+- supersede ${oldId} with prop-1 | rationale: replace
+===END===`);
+
+    const supersedeProposal = engine.getPendingProposals().find((p) => p.type === 'supersede');
+    const result = engine.acceptProposal(supersedeProposal.id);
+    expect(result.applied).toBe(false);
+    expect(result.reason).toContain('prop-1');
+    expect(result.reason).toMatch(/accept the new proposal first/i);
+  });
+
+  it('proposalIdMap is cleared when a new reply is ingested', async () => {
+    const engine = createEngine();
+    await engine.ingestReplyWithFallback(`===MEMORY===
+- old fact
+===END===`);
+    const oldId = engine.getBoards().memory[0].id;
+
+    await engine.ingestReplyWithFallback(`===PROPOSE===
+- new memory prop-1: Replacement | tags: career | rationale: new
+- supersede ${oldId} with prop-1 | rationale: replace
+===END===`);
+
+    const pending = engine.getPendingProposals();
+    const newProposal = pending.find((p) => p.type === 'new');
+    const supersedeProposal = pending.find((p) => p.type === 'supersede');
+    engine.acceptProposal(newProposal.id);
+
+    await engine.ingestReplyWithFallback(`===MEMORY===
+- unrelated turn
+===END===`);
+
+    const retry = engine.acceptProposal(supersedeProposal.id);
+    expect(retry.applied).toBe(false);
+    expect(retry.reason).toContain('prop-1');
+  });
+
+  it('new-then-supersede in one batch succeeds via accept-all', async () => {
+    const engine = createEngine();
+    await engine.ingestReplyWithFallback(`===MEMORY===
+- old fact | tags: career
+===END===`);
+    const oldId = engine.getBoards().memory[0].id;
+
+    await engine.ingestReplyWithFallback(`===PROPOSE===
+- new memory prop-1: Batch replacement | tags: career | rationale: committed
+- supersede ${oldId} with prop-1 | rationale: replaced
+===END===`);
+
+    const results = engine.acceptAllSafeProposals();
+    expect(results.filter((r) => r.applied)).toHaveLength(2);
+    expect(engine.getPendingProposals()).toHaveLength(0);
+    const oldAfter = engine.getBoards().memory.find((m) => m.id === oldId);
+    expect(oldAfter.provenance).toBe('stale_superseded');
+  });
+});
+
 describe('R4 — material-only rule is in the prompt', async () => {
   it('decorated prompt instructs the model with material-only rule and PROPOSE shapes', async () => {
     const engine = createEngine();
@@ -310,7 +423,7 @@ describe('R4 — material-only rule is in the prompt', async () => {
     expect(prompt).toContain('rationale:');
     expect(prompt).toContain('mark <existing_id> <new_status>');
     expect(prompt).toContain('supersede <old_existing_id> with <new_existing_id>');
-    expect(prompt).toContain('new <board>:');
+    expect(prompt).toContain('new <board> [<prop-N>]:');
     expect(prompt).toContain('tag <existing_id>');
   });
 });

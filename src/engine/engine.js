@@ -130,11 +130,16 @@ export function createEngine() {
     lastActivityAt: null,
     pendingProposals: [],
     turns: [],
+    proposalIdMap: {},
   };
 
   function markEdited() {
     state.hasCorrectiveEdits = true;
     state.lastActivityAt = nowIso();
+  }
+
+  function clearProposalIdMap() {
+    state.proposalIdMap = {};
   }
 
   function touch(item) {
@@ -153,6 +158,7 @@ export function createEngine() {
 
   return {
     ingestReply(text) {
+      clearProposalIdMap();
       const added = appendParsed(state, parseReplyBlocks(text));
       const proposalsAdded = harvestProposals(text);
       if (added.memory + added.assumptions + added.facts + added.ambient > 0) {
@@ -162,6 +168,7 @@ export function createEngine() {
     },
 
     async ingestReplyWithFallback(text) {
+      clearProposalIdMap();
       let parsed = parseReplyBlocks(text);
       const usedNano =
         parsed.memory.length === 0 &&
@@ -229,14 +236,13 @@ export function createEngine() {
      */
     acceptAllSafeProposals() {
       const results = [];
-      const localIdMap = new Map();
       const survivors = [];
       for (const proposal of state.pendingProposals) {
         if (proposal.requiresIndividualConfirm) {
           survivors.push(proposal);
           continue;
         }
-        const result = applyProposal(state, proposal, localIdMap);
+        const result = applyProposal(state, proposal);
         results.push({ proposal_id: proposal.id, ...result });
         if (!result.applied) survivors.push(proposal);
       }
@@ -684,6 +690,7 @@ export function createEngine() {
       applySnapshot(state, snapshot);
       state.lastActivityAt = snapshot.lastActivityAt || null;
       state.pendingProposals = [];
+      clearProposalIdMap();
     },
 
     /**
@@ -701,6 +708,7 @@ export function createEngine() {
       state.lastActivityAt = null;
       state.pendingProposals = [];
       state.turns = [];
+      clearProposalIdMap();
     },
   };
 }

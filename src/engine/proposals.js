@@ -8,15 +8,16 @@
  *   ===PROPOSE===
  *   - mark <id> <status> | rationale: <one-liner>
  *   - supersede <old_id> with <new_id> | rationale: <one-liner>
- *   - new <board>: <text> | tags: t1,t2 | rationale: <one-liner>
+ *   - new <board> [<prop-N>]: <text> | tags: t1,t2 | rationale: <one-liner>
  *   - tag <id> <comma-separated tags> | rationale: <one-liner>
  *   ===END===
  *
  * Where:
  *   - <board> is one of memory | facts | assumptions
  *   - <status> is one of the R1 statuses (active | open | done | dropped | revived)
- *   - <id> may be an existing record id or a freshly proposed id (with the prefix
- *     `prop-`) referenced by a sibling proposal in the same batch
+ *   - <prop-N> is an optional proposal-local id on `new` lines (e.g. prop-1). Sibling
+ *     proposals may reference it in mark / tag / supersede targets only after the
+ *     corresponding `new` proposal has been accepted (engine tracks prop-N → record id).
  *
  * High-impact rule: any proposal touching a record tagged with one of the
  * HIGH_IMPACT_TAGS, or referencing a record of kind `goal` / `decision`, is
@@ -108,12 +109,15 @@ function parseLine(rawLine) {
     };
   }
 
-  // "new <board>: <text> | tags: ..."
-  const newMatch = afterRationale.match(/^new\s+(memory|facts|assumptions)\s*:\s*(.+?)\s*$/i);
+  // "new <board> [<prop-N>]: <text> | tags: ..."
+  const newMatch = afterRationale.match(
+    /^new\s+(memory|facts|assumptions)(?:\s+(prop-[a-zA-Z0-9_-]+))?\s*:\s*(.+?)\s*$/i,
+  );
   if (newMatch) {
     const board = newMatch[1].toLowerCase();
     if (!VALID_BOARDS.has(board)) return null;
-    const { rest: text, tags } = extractTrailingTags(newMatch[2]);
+    const localId = newMatch[2] || undefined;
+    const { rest: text, tags } = extractTrailingTags(newMatch[3]);
     if (!text) return null;
     return {
       type: 'new',
@@ -121,6 +125,7 @@ function parseLine(rawLine) {
       text,
       tags,
       rationale,
+      ...(localId ? { local_id: localId } : {}),
     };
   }
 
@@ -198,16 +203,17 @@ export function annotateImpact(proposals, state) {
  * Apply a single proposal to engine state. Pure mutation, no I/O.
  * Returns { applied: boolean, reason?: string }.
  *
- * Resolves proposal-local ids (`prop-...` in supersede references) against
- * `localIdMap` so a `new` proposal accepted earlier in the same batch can be
- * referenced by a sibling `supersede` proposal.
+ * Resolves proposal-local ids (`prop-...`) via `state.proposalIdMap`, populated
+ * when a `new` proposal with a `local_id` is accepted. The map is cleared on each
+ * new reply ingest, restoreSnapshot, and reset.
  *
  * @param {object} state
  * @param {object} proposal
- * @param {Map<string,string>} [localIdMap] - proposal id -> created record id
  */
-export function applyProposal(state, proposal, localIdMap = new Map()) {
+export function applyProposal(state, proposal) {
   const now = new Date().toISOString();
+  const proposalIdMap = state.proposalIdMap || {};
+
   const findItem = (id) => {
     for (const board of [state.memory, state.facts, state.assumptions]) {
       const item = board.find((x) => x.id === id);
@@ -216,14 +222,28 @@ export function applyProposal(state, proposal, localIdMap = new Map()) {
     return null;
   };
 
+  function isUnresolvedPropId(id) {
+    return typeof id === 'string' && id.startsWith('prop-') && !proposalIdMap[id];
+  }
+
   function resolveId(id) {
-    return localIdMap.get(id) || id;
+    return proposalIdMap[id] || id;
+  }
+
+  function missingTargetReason(id) {
+    if (isUnresolvedPropId(id)) {
+      return `unresolved proposal-local id: ${id} (accept the new proposal first)`;
+    }
+    return `unknown target id: ${id}`;
   }
 
   if (proposal.type === 'mark_status') {
     const realId = resolveId(proposal.target_id);
+    if (isUnresolvedPropId(proposal.target_id)) {
+      return { applied: false, reason: missingTargetReason(proposal.target_id) };
+    }
     const found = findItem(realId);
-    if (!found) return { applied: false, reason: `unknown target id: ${proposal.target_id}` };
+    if (!found) return { applied: false, reason: missingTargetReason(proposal.target_id) };
     found.item.status = proposal.status;
     found.item.provenance = 'model_proposed_user_confirmed';
     found.item.updated_at = now;
@@ -232,8 +252,11 @@ export function applyProposal(state, proposal, localIdMap = new Map()) {
 
   if (proposal.type === 'tag') {
     const realId = resolveId(proposal.target_id);
+    if (isUnresolvedPropId(proposal.target_id)) {
+      return { applied: false, reason: missingTargetReason(proposal.target_id) };
+    }
     const found = findItem(realId);
-    if (!found) return { applied: false, reason: `unknown target id: ${proposal.target_id}` };
+    if (!found) return { applied: false, reason: missingTargetReason(proposal.target_id) };
     const existing = new Set(found.item.tags || []);
     for (const tag of proposal.tags) existing.add(tag);
     found.item.tags = [...existing];
@@ -243,14 +266,21 @@ export function applyProposal(state, proposal, localIdMap = new Map()) {
   }
 
   if (proposal.type === 'supersede') {
+    if (isUnresolvedPropId(proposal.target_id)) {
+      return { applied: false, reason: missingTargetReason(proposal.target_id) };
+    }
+    if (isUnresolvedPropId(proposal.new_id)) {
+      return { applied: false, reason: missingTargetReason(proposal.new_id) };
+    }
     const oldRealId = resolveId(proposal.target_id);
     const newRealId = resolveId(proposal.new_id);
     const oldFound = findItem(oldRealId);
     const newFound = findItem(newRealId);
     if (!oldFound || !newFound) {
+      const missing = !oldFound ? proposal.target_id : proposal.new_id;
       return {
         applied: false,
-        reason: `supersede missing target(s): ${proposal.target_id} / ${proposal.new_id}`,
+        reason: missingTargetReason(missing),
       };
     }
     // Mark the older one stale and link both directions.
@@ -306,7 +336,10 @@ export function applyProposal(state, proposal, localIdMap = new Map()) {
       created.reason = 'model_proposed';
     }
     board.push(created);
-    if (proposal.id) localIdMap.set(proposal.id, id);
+    if (proposal.local_id) {
+      if (!state.proposalIdMap) state.proposalIdMap = {};
+      state.proposalIdMap[proposal.local_id] = id;
+    }
     return { applied: true, target_id: id };
   }
 
