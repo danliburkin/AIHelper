@@ -1,0 +1,14 @@
+---
+description: Context Lens standing rules
+alwaysApply: true
+---
+- Work on main. One commit per numbered task, message "M<phase>.<task>: <summary>".
+- Before every commit: npx vitest run && npm run build must pass. Never commit red.
+- src/engine/* must never import from src/storage/, src/auth/, or touch DOM, network, localStorage.
+- Only src/ui/conversations.js (and later src/ui/verdict.js) may consume storage adapters.
+- No new dependencies unless the task names them. No features listed as out of scope in CURSOR_BUILD.md.
+- Comments only for non-obvious decisions. No boilerplate docstrings.
+- Tests never make network calls; stub external clients.
+- If tokens run low: finish current task, commit, append one-line resume note to CURSOR_BUILD.md
+  status, print "PROMPT INCOMPLETE — resume note in CURSOR_BUILD.md", stop.
+- At successful end of a prompt print exactly: PROMPT FINISHED — GIVE ME THE NEXT ONE
