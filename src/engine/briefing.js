@@ -222,6 +222,7 @@ export function buildBriefing(state, opts = {}) {
   // then oldest). Iterate BEST-to-WORST and keep whatever fits; everything that
   // doesn't fit is dropped — which is exactly "drop lowest confidence first, then oldest".
   const ambientText = ambient.map(renderAmbient).join('\n');
+  const ambientOverflow = ambientText.length > charBudget;
   let remainingBudget = charBudget - ambientText.length;
 
   const keepOrder = [...pool].sort(compareForPruning); // best-to-keep first
@@ -236,6 +237,20 @@ export function buildBriefing(state, opts = {}) {
       dropped.push(rec);
     }
   }
+
+  if (ambientOverflow) {
+    const highConf = pool.filter((r) => r.confidence === 'high');
+    highConf.sort(compareRecency);
+    if (highConf.length > 0) {
+      const forceKeep = highConf[0];
+      if (!keptSet.has(forceKeep.id)) {
+        keptSet.add(forceKeep.id);
+        const dropIdx = dropped.findIndex((r) => r.id === forceKeep.id);
+        if (dropIdx !== -1) dropped.splice(dropIdx, 1);
+      }
+    }
+  }
+
   const kept = pool.filter((r) => keptSet.has(r.id));
 
   // Supersession notes.
@@ -321,6 +336,7 @@ export function buildBriefing(state, opts = {}) {
       tagFallback,
       elapsed,
       supersessionCount: supersessionNotes.length,
+      ambientOverflow,
     },
   };
 }

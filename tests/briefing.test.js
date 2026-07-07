@@ -208,6 +208,54 @@ describe('R3 buildBriefing — token cap', () => {
     const { text } = buildBriefing(state, { topicTags: ['x'], tokenBudget: 20 });
     expect(text).toContain('must survive cap');
   });
+
+  it('when ambient alone exceeds the budget, flags overflow and keeps newest high-confidence stateful item', () => {
+    const state = emptyState();
+    state.memory.push(
+      mkStateful({
+        id: 'high-new',
+        text: 'HIGH_CONF_ANCHOR',
+        confidence: 'high',
+        updated_at: '2025-06-01T00:00:00.000Z',
+        tags: ['x'],
+      }),
+      mkStateful({
+        id: 'low-old',
+        text: 'LOW_CONF_DROP',
+        confidence: 'low',
+        updated_at: '2022-01-01T00:00:00.000Z',
+        tags: ['x'],
+      }),
+    );
+    state.ambient.push(
+      {
+        id: 'amb1',
+        kind: 'ambient',
+        text: 'A'.repeat(120),
+        intensity: 'high',
+        tags: [],
+        created_at: '2024-01-01T00:00:00.000Z',
+        last_seen_at: '2024-01-02T00:00:00.000Z',
+        active: true,
+      },
+      {
+        id: 'amb2',
+        kind: 'ambient',
+        text: 'B'.repeat(120),
+        intensity: 'medium',
+        tags: [],
+        created_at: '2024-01-03T00:00:00.000Z',
+        last_seen_at: '2024-01-04T00:00:00.000Z',
+        active: true,
+      },
+    );
+
+    const { text, meta } = buildBriefing(state, { topicTags: ['x'], tokenBudget: 30 });
+    expect(meta.ambientOverflow).toBe(true);
+    expect(text).toContain('A'.repeat(120));
+    expect(text).toContain('HIGH_CONF_ANCHOR');
+    expect(text).not.toContain('LOW_CONF_DROP');
+  });
 });
 
 describe('R3 buildBriefing — supersession', () => {
