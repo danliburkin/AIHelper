@@ -26,6 +26,7 @@
  */
 
 import { isValidStatus } from './records.js';
+import { newId } from './ids.js';
 
 const PROPOSE_START = '===PROPOSE===';
 const PROPOSE_END = '===END===';
@@ -41,10 +42,6 @@ export const HIGH_IMPACT_TAGS = Object.freeze([
 ]);
 
 const HIGH_IMPACT_KINDS = new Set(['goal', 'decision']);
-
-function newProposalId() {
-  return 'p_' + Math.random().toString(36).slice(2, 10);
-}
 
 function extractTrailingRationale(body) {
   const m = body.match(/^(.*?)(?:\s*\|\s*rationale:\s*(.+?))?\s*$/i);
@@ -155,7 +152,7 @@ export function parseProposals(text) {
     const parsed = parseLine(line);
     if (!parsed) continue;
     proposals.push({
-      id: newProposalId(),
+      id: newId('p_'),
       created_at: new Date().toISOString(),
       requiresIndividualConfirm: false,
       ...parsed,
@@ -305,10 +302,7 @@ export function applyProposal(state, proposal) {
     if (!Array.isArray(board)) {
       return { applied: false, reason: `unknown board: ${proposal.board}` };
     }
-    const id =
-      typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : 'r_' + Math.random().toString(36).slice(2, 10);
+    const id = newId();
     const created = {
       id,
       active: true,

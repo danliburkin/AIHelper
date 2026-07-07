@@ -20,12 +20,7 @@ import {
 } from './persistence.js';
 import { buildBriefing, deriveTopicTags } from './briefing.js';
 import { parseProposals, annotateImpact, applyProposal } from './proposals.js';
-
-function newId() {
-  return typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : 'r_' + Math.random().toString(36).slice(2, 10);
-}
+import { newId } from './ids.js';
 
 function nowIso() {
   return new Date().toISOString();
